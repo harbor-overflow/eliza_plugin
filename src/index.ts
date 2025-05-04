@@ -14,45 +14,18 @@ import {
   logger,
 } from '@elizaos/core';
 import { z } from 'zod';
+import { MemoryWalrusSealService } from './service';
 
-/**
- * Defines the configuration schema for a plugin, including the validation rules for the plugin name.
- *
- * @type {import('zod').ZodObject<{ EXAMPLE_PLUGIN_VARIABLE: import('zod').ZodString }>}
- */
-const configSchema = z.object({
-  EXAMPLE_PLUGIN_VARIABLE: z
-    .string()
-    .min(1, 'Example plugin variable is not provided')
-    .optional()
-    .transform((val) => {
-      if (!val) {
-        logger.warn('Example plugin variable is not provided (this is expected)');
-      }
-      return val;
-    }),
-});
-
-/**
- * Example HelloWorld action
- * This demonstrates the simplest possible action structure
- */
-/**
- * Action representing a hello world message.
- * @typedef {Object} Action
- * @property {string} name - The name of the action.
- * @property {string[]} similes - An array of related actions.
- * @property {string} description - A brief description of the action.
- * @property {Function} validate - Asynchronous function to validate the action.
- * @property {Function} handler - Asynchronous function to handle the action and generate a response.
- * @property {Object[]} examples - An array of example inputs and expected outputs for the action.
- */
 const helloWorldAction: Action = {
   name: 'HELLO_WORLD',
   similes: ['GREET', 'SAY_HELLO'],
   description: 'Responds with a simple hello world message',
 
-  validate: async (_runtime: IAgentRuntime, _message: Memory, _state: State): Promise<boolean> => {
+  validate: async (
+    _runtime: IAgentRuntime,
+    _message: Memory,
+    _state: State
+  ): Promise<boolean> => {
     // Always valid
     return true;
   },
@@ -66,6 +39,9 @@ const helloWorldAction: Action = {
     _responses: Memory[]
   ) => {
     try {
+      const memoryWalrusSealService = new MemoryWalrusSealService(_runtime);
+      await memoryWalrusSealService.createEncryptAndUploadTask();
+
       logger.info('Handling HELLO_WORLD action');
 
       // Simple response content
@@ -105,54 +81,24 @@ const helloWorldAction: Action = {
 };
 
 /**
- * Example Hello World Provider
- * This demonstrates the simplest possible provider implementation
+ * Defines the configuration schema for a plugin, including the validation rules for the plugin name.
+ *
+ * @type {import('zod').ZodObject<{ EXAMPLE_PLUGIN_VARIABLE: import('zod').ZodString }>}
  */
-const helloWorldProvider: Provider = {
-  name: 'HELLO_WORLD_PROVIDER',
-  description: 'A simple example provider',
-
-  get: async (
-    _runtime: IAgentRuntime,
-    _message: Memory,
-    _state: State
-  ): Promise<ProviderResult> => {
-    return {
-      text: 'I am a provider',
-      values: {},
-      data: {},
-    };
-  },
-};
-
-export class StarterService extends Service {
-  static serviceType = 'starter';
-  capabilityDescription =
-    'This is a starter service which is attached to the agent through the starter plugin.';
-  constructor(protected runtime: IAgentRuntime) {
-    super(runtime);
-  }
-
-  static async start(runtime: IAgentRuntime) {
-    logger.info(`*** Starting starter service - MODIFIED: ${new Date().toISOString()} ***`);
-    const service = new StarterService(runtime);
-    return service;
-  }
-
-  static async stop(runtime: IAgentRuntime) {
-    logger.info('*** TESTING DEV MODE - STOP MESSAGE CHANGED! ***');
-    // get the service from the runtime
-    const service = runtime.getService(StarterService.serviceType);
-    if (!service) {
-      throw new Error('Starter service not found');
-    }
-    service.stop();
-  }
-
-  async stop() {
-    logger.info('*** THIRD CHANGE - TESTING FILE WATCHING! ***');
-  }
-}
+const configSchema = z.object({
+  EXAMPLE_PLUGIN_VARIABLE: z
+    .string()
+    .min(1, 'Example plugin variable is not provided')
+    .optional()
+    .transform((val) => {
+      if (!val) {
+        logger.warn(
+          'Example plugin variable is not provided (this is expected)'
+        );
+      }
+      return val;
+    }),
+});
 
 export const starterPlugin: Plugin = {
   name: 'plugin-harbor',
@@ -208,7 +154,7 @@ export const starterPlugin: Plugin = {
           fn: async (runtime) => {
             logger.debug('example_test run by ', runtime.character.name);
             // Add a proper assertion that will pass]
-            
+
             if (runtime.character.name !== 'Eliza') {
               throw new Error(
                 `Expected character name to be "Eliza" but got "${runtime.character.name}"`
@@ -228,7 +174,9 @@ export const starterPlugin: Plugin = {
             // Check if the hello world action is registered
             // Look for the action in our plugin's actions
             // The actual action name in this plugin is "helloWorld", not "hello"
-            const actionExists = starterPlugin.actions.some((a) => a.name === 'HELLO_WORLD');
+            const actionExists = starterPlugin.actions.some(
+              (a) => a.name === 'HELLO_WORLD'
+            );
             console.log('Action exists:', actionExists);
             if (!actionExists) {
               throw new Error('Hello world action not found in plugin');
@@ -238,51 +186,11 @@ export const starterPlugin: Plugin = {
       ],
     },
   ],
-  routes: [
-    {
-      path: '/helloworld',
-      type: 'GET',
-      handler: async (_req: any, res: any) => {
-        // send a response
-        res.json({
-          message: 'Hello World!',
-        });
-      },
-    },
-  ],
-  events: {
-    MESSAGE_RECEIVED: [
-      async (params) => {
-        logger.debug('MESSAGE_RECEIVED event received');
-        // print the keys
-        logger.debug(Object.keys(params));
-      },
-    ],
-    VOICE_MESSAGE_RECEIVED: [
-      async (params) => {
-        logger.debug('VOICE_MESSAGE_RECEIVED event received');
-        // print the keys
-        logger.debug(Object.keys(params));
-      },
-    ],
-    WORLD_CONNECTED: [
-      async (params) => {
-        logger.debug('WORLD_CONNECTED event received');
-        // print the keys
-        logger.debug(Object.keys(params));
-      },
-    ],
-    WORLD_JOINED: [
-      async (params) => {
-        logger.debug('WORLD_JOINED event received');
-        // print the keys
-        logger.debug(Object.keys(params));
-      },
-    ],
-  },
-  services: [StarterService],
+  routes: [],
+  events: {},
+  services: [MemoryWalrusSealService],
   actions: [helloWorldAction],
-  providers: [helloWorldProvider],
+  providers: [],
 };
 
 export default starterPlugin;
