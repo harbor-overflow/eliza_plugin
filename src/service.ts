@@ -63,6 +63,10 @@ export class WalrusSealService extends Service {
       });
 
       console.log(storageInfo);
+      return {
+        success: true,
+        blobId: storageInfo.blobId,
+      };
     } catch (error) {
       console.log('Error encrypting and uploading data:', error);
       logger.error(`Failed to encrypt and upload data: ${error}`);
@@ -73,7 +77,6 @@ export class WalrusSealService extends Service {
     }
   }
 
-  // async createDownloadAndDecryptTask() {}
 
   static async start(runtime: IAgentRuntime) {
     logger.info(

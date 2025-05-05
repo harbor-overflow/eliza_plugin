@@ -6,9 +6,6 @@ import {
   HandlerCallback,
   logger,
   Content,
-  ModelType,
-  composePrompt,
-  parseJSONObjectFromText,
 } from '@elizaos/core';
 import { WalrusSealService } from 'src/service';
 
@@ -86,22 +83,37 @@ export const encryptAndUploadMemoryAction: Action = {
       });
       const jsonData = JSON.stringify(memories, null, 0);
       const dataToEncrypt = new TextEncoder().encode(jsonData);
-      await memoryWalrusSealService.createEncryptAndUploadTask(
-        dataToEncrypt,
-        deletable,
-        epochs
-      );
+      const { success, blobId, error } =
+        await memoryWalrusSealService.createEncryptAndUploadTask(
+          dataToEncrypt,
+          deletable,
+          epochs
+        );
 
-      // Simple response content
-      const responseContent: Content = {
-        text: 'memory uploaded successfully!',
-        actions: ['ENCRYPT_AND_UPLOAD_MEMORY'],
-      };
+      // // Simple response content
+      // const responseContent: Content = {
+      //   text: 'memory uploaded successfully! blobId: ',
+      //   actions: ['ENCRYPT_AND_UPLOAD_MEMORY'],
+      // };
+      if (success) {
+        const responseContent: Content = {
+          text: `memory uploaded successfully!\nblobId: ${blobId}`,
+          actions: ['ENCRYPT_AND_UPLOAD_MEMORY'],
+        };
+        // Call back with the response message
+        await callback(responseContent);
 
-      // Call back with response message
-      await callback(responseContent);
+        return responseContent;
+      } else {
+        const responseContent: Content = {
+          text: `Failed to upload memory: ${error}`,
+          actions: ['ENCRYPT_AND_UPLOAD_MEMORY'],
+        };
+        // Call back with the response message
+        await callback(responseContent);
 
-      return responseContent;
+        return responseContent;
+      }
     } catch (error) {
       logger.error('Error in ENCRYPT_AND_UPLOAD_MEMORY action:', error);
       throw error;
@@ -119,7 +131,7 @@ export const encryptAndUploadMemoryAction: Action = {
       {
         name: '{{name2}}',
         content: {
-          text: 'memory uploaded successfully!',
+          text: 'memory uploaded successfully!\nblobId: ...',
           actions: ['ENCRYPT_AND_UPLOAD_MEMORY'],
         },
       },
@@ -134,7 +146,7 @@ export const encryptAndUploadMemoryAction: Action = {
       {
         name: '{{name2}}',
         content: {
-          text: 'memory uploaded successfully!',
+          text: 'memory uploaded successfully!\nblobId: ...',
           actions: ['ENCRYPT_AND_UPLOAD_MEMORY'],
         },
       },
@@ -149,7 +161,7 @@ export const encryptAndUploadMemoryAction: Action = {
       {
         name: '{{name2}}',
         content: {
-          text: 'memory uploaded successfully!',
+          text: 'memory uploaded successfully!\nblobId: ...',
           actions: ['ENCRYPT_AND_UPLOAD_MEMORY'],
         },
       },
