@@ -12,7 +12,7 @@ import { toHex } from '@mysten/sui/utils';
 import { WalrusClient } from '@mysten/walrus';
 import { sealKeyServerIds, TESTNET_PACKAGE_ID } from './constants';
 
-export class MemoryWalrusSealService extends Service {
+export class WalrusSealService extends Service {
   static serviceType = ServiceType.TASK;
   capabilityDescription =
     'This is a starter service which is attached to the agent through the starter plugin.';
@@ -20,16 +20,12 @@ export class MemoryWalrusSealService extends Service {
     super(runtime);
   }
 
-  async createEncryptAndUploadTask(tableName?: string, roomId?: UUID) {
-    // 메모리 데이터 가져오기
-    const memories = await this.runtime.getMemories({
-      agentId: this.runtime.agentId,
-      tableName: tableName ? tableName : 'memories',
-      roomId: roomId ? roomId : undefined,
-    });
-    const jsonData = JSON.stringify(memories, null, 0);
-
-    // Sui 클라이언트 및 Seal 클라이언트 설정
+  async createEncryptAndUploadTask(
+    dataToEncrypt: Uint8Array<ArrayBufferLike>,
+    deletable: boolean = true,
+    epochs: number = 3
+  ) {
+    // suiClient, sealClient, walrusClient setup
     const suiClient = new SuiClient({ url: getFullnodeUrl('testnet') });
     const client = new SealClient({
       suiClient,
@@ -40,19 +36,12 @@ export class MemoryWalrusSealService extends Service {
       network: 'testnet',
       suiClient,
     });
-    // SUI_PRIVATE_KEY from env
+
+    // SUI_PRIVATE_KEY from env. TODO change to signer provider
     const privateKey = process.env.SUI_PRIVATE_KEY;
     const keypair = Ed25519Keypair.fromSecretKey(privateKey);
 
     try {
-      // 텍스트 데이터를 바이트 배열로 변환
-      const dataToEncrypt = new TextEncoder().encode(jsonData);
-
-      // // 비밀키로부터 키페어 생성
-      // const { keypair } = await client.importKeypair(
-      //   MemoryWalrusSealService.privateKey
-      // );
-
       logger.info('Encrypting and uploading data with Seal...');
       // random hex
       const id = toHex(crypto.getRandomValues(new Uint8Array(16)));
@@ -65,10 +54,11 @@ export class MemoryWalrusSealService extends Service {
         data: dataToEncrypt,
       });
       console.log('Encrypted data:', encryptedBytes);
+      logger.info('writing blob to walrus...');
       const storageInfo = await walrusClient.writeBlob({
         blob: encryptedBytes,
-        deletable: true,
-        epochs: 3,
+        deletable: deletable,
+        epochs: epochs,
         signer: keypair,
       });
 
@@ -89,14 +79,14 @@ export class MemoryWalrusSealService extends Service {
     logger.info(
       `*** Starting starter service - MODIFIED: ${new Date().toISOString()} ***`
     );
-    const service = new MemoryWalrusSealService(runtime);
+    const service = new WalrusSealService(runtime);
     return service;
   }
 
   static async stop(runtime: IAgentRuntime) {
     logger.info('*** TESTING DEV MODE - STOP MESSAGE CHANGED! ***');
     // get the service from the runtime
-    const service = runtime.getService(MemoryWalrusSealService.serviceType);
+    const service = runtime.getService(WalrusSealService.serviceType);
     if (!service) {
       throw new Error('Starter service not found');
     }
