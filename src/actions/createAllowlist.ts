@@ -69,9 +69,9 @@ export const createAllowlistAction: Action = {
       });
 
       const responseContentObj = parseJSONObjectFromText(response);
+      logger.info(`responseContentObj.name: ${responseContentObj.name}`);
 
       const memoryWalrusSealService = new WalrusSealService(runtime);
-      logger.info(`responseContentObj.name: ${responseContentObj.name}`);
 
       const { success, allowlistId, capId, transactionDigest, error } =
         await memoryWalrusSealService.createAllowlistTask(
@@ -79,7 +79,7 @@ export const createAllowlistAction: Action = {
         );
       const responseContent: Content = {
         text: success
-          ? `Allowlist entry created successfully!\ntxId: ${transactionDigest}\nallowlistId: ${allowlistId}\n\nhttps://testnet.suivision.xyz/txblock/${transactionDigest}`
+          ? `Allowlist entry created successfully!\ntxId: ${transactionDigest}\nallowlistId: ${allowlistId}\ncapId: ${capId}\n\nhttps://testnet.suivision.xyz/txblock/${transactionDigest}`
           : `Failed to create allowlist entry: ${error}`,
         actions: ['CREATE_ALLOWLIST'],
       };

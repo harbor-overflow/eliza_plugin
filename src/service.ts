@@ -21,6 +21,46 @@ export class WalrusSealService extends Service {
     super(runtime);
   }
 
+  async addAllowlistTask(allowlistId: string, capId: string, address: string) {
+    try {
+      const suiClient = new SuiClient({ url: getFullnodeUrl('testnet') });
+      const privateKey = process.env.SUI_PRIVATE_KEY;
+      const keypair = Ed25519Keypair.fromSecretKey(privateKey);
+
+      // add address to the allowlist
+      const tx = new Transaction();
+      tx.moveCall({
+        target: `${TESTNET_ALLOWLIST_PACKAGE_ID}::allowlist::add`,
+        arguments: [
+          tx.object(allowlistId),
+          tx.object(capId),
+          tx.pure.address(address), // address to add
+        ],
+      });
+
+      // run add allowlist transaction
+      const result = await suiClient.signAndExecuteTransaction({
+        signer: keypair,
+        transaction: tx,
+        options: {
+          showEffects: true,
+          showObjectChanges: true,
+        },
+      });
+
+      return {
+        success: true,
+        transactionDigest: result.digest,
+      };
+    } catch (error) {
+      logger.error(`Failed to add address to allowlist: ${error}`);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : String(error),
+      };
+    }
+  }
+
   async createAllowlistTask(name: string) {
     try {
       const suiClient = new SuiClient({ url: getFullnodeUrl('testnet') });
@@ -128,14 +168,12 @@ export class WalrusSealService extends Service {
       const keypair = Ed25519Keypair.fromSecretKey(privateKey);
 
       logger.info('Encrypting data with Seal...');
-      // random hex
-      const id = toHex(crypto.getRandomValues(new Uint8Array(16)));
 
-      // 데이터 암호화 및 업로드
+      // encrypt the data with seal and upload it to walrus
       const { encryptedObject: encryptedBytes } = await client.encrypt({
         threshold: 2,
         packageId: TESTNET_ALLOWLIST_PACKAGE_ID,
-        id: id,
+        id: allowlistId,
         data: dataToEncrypt,
       });
       logger.info('writing blob to walrus...');

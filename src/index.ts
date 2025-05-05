@@ -17,6 +17,7 @@ import { z } from 'zod';
 import { WalrusSealService } from './service';
 import { encryptAndUploadMemoryAction } from './actions/encryptAndUploadMemory';
 import { createAllowlistAction } from './actions/createAllowlist';
+import { addAllowlistAction } from './actions/addAllowlist';
 
 /**
  * Defines the configuration schema for a plugin, including the validation rules for the plugin name.
@@ -107,7 +108,11 @@ export const harborPlugin: Plugin = {
   routes: [],
   events: {},
   services: [WalrusSealService],
-  actions: [encryptAndUploadMemoryAction, createAllowlistAction],
+  actions: [
+    encryptAndUploadMemoryAction,
+    createAllowlistAction,
+    addAllowlistAction,
+  ],
   providers: [],
 };
 
