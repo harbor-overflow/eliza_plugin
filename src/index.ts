@@ -1,23 +1,11 @@
 import type { Plugin } from '@elizaos/core';
-import {
-  type Action,
-  type Content,
-  type GenerateTextParams,
-  type HandlerCallback,
-  type IAgentRuntime,
-  type Memory,
-  ModelType,
-  type Provider,
-  type ProviderResult,
-  Service,
-  type State,
-  logger,
-} from '@elizaos/core';
+import { logger } from '@elizaos/core';
 import { z } from 'zod';
 import { WalrusSealService } from './service';
 import { encryptAndUploadMemoryAction } from './actions/encryptAndUploadMemory';
 import { createAllowlistAction } from './actions/createAllowlist';
 import { addAllowlistAction } from './actions/addAllowlist';
+import { downloadAndDecryptMemoryAction } from './actions/downloadAndDecryptMemory';
 
 /**
  * Defines the configuration schema for a plugin, including the validation rules for the plugin name.
@@ -112,6 +100,7 @@ export const harborPlugin: Plugin = {
     encryptAndUploadMemoryAction,
     createAllowlistAction,
     addAllowlistAction,
+    downloadAndDecryptMemoryAction,
   ],
   providers: [],
 };

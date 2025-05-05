@@ -4,10 +4,15 @@ import {
   ServiceType,
   logger,
 } from '@elizaos/core';
-import { getAllowlistedKeyServers, SealClient } from '@mysten/seal';
+import {
+  EncryptedObject,
+  getAllowlistedKeyServers,
+  SealClient,
+  SessionKey,
+} from '@mysten/seal';
 import { getFullnodeUrl, SuiClient } from '@mysten/sui/client';
 import { Ed25519Keypair } from '@mysten/sui/keypairs/ed25519';
-import { toHex } from '@mysten/sui/utils';
+import { fromHex } from '@mysten/sui/utils';
 import { WalrusClient } from '@mysten/walrus';
 import { TESTNET_ALLOWLIST_PACKAGE_ID } from './constants';
 import { Transaction } from '@mysten/sui/transactions';
@@ -197,55 +202,63 @@ export class WalrusSealService extends Service {
     }
   }
 
-  // private constructMoveCall(packageId: string, allowlistId: string) {
-  //   return (tx: Transaction, id: string) => {
-  //     tx.moveCall({
-  //       target: `${packageId}::allowlist::seal_approve`,
-  //       arguments: [tx.pure.vector('u8', fromHex(id)), tx.object(allowlistId)],
-  //     });
-  //   };
-  // }
+  async createDownloadAndDecryptTask(blobId: string, allowlistId: string) {
+    try {
+      // suiClient, sealClient, walrusClient setup
+      const suiClient = new SuiClient({ url: getFullnodeUrl('testnet') });
+      const client = new SealClient({
+        suiClient,
+        serverObjectIds: getAllowlistedKeyServers('testnet'),
+        verifyKeyServers: false,
+      });
+      const walrusClient = new WalrusClient({
+        network: 'testnet',
+        suiClient,
+      });
+      logger.info('Downloading blob from walrus...');
+      const blob = await walrusClient.readBlob({ blobId });
+      const id = EncryptedObject.parse(new Uint8Array(blob)).id;
 
-  // async createDownloadAndDecryptTask(blobId: string) {
-  //   try {
-  //     // suiClient, sealClient, walrusClient setup
-  //     const suiClient = new SuiClient({ url: getFullnodeUrl('testnet') });
-  //     const client = new SealClient({
-  //       suiClient,
-  //       serverObjectIds: getAllowlistedKeyServers('testnet'),
-  //       verifyKeyServers: false,
-  //     });
-  //     const walrusClient = new WalrusClient({
-  //       network: 'testnet',
-  //       suiClient,
-  //     });
-  //     const blob = await walrusClient.readBlob({ blobId });
-  //     console.log('Blob:', blob);
-  //     // Create the Transaction for evaluating the seal_approve function.
-  //     const tx = new Transaction();
-  //     const moveCallConstructor = this.constructMoveCall(
-  //       packageId,
-  //       allowlistId
-  //     );
-  //     moveCallConstructor(tx, allowlistId);
-  //     const txBytes = tx.build({
-  //       client: suiClient,
-  //       onlyTransactionKind: true,
-  //     });
-  //     const decryptedBytes = await client.decrypt({
-  //       data: encryptedBytes,
-  //       sessionKey,
-  //       txBytes,
-  //     });
-  //   } catch (error) {
-  //     console.log('Error downloading and decrypting data:', error);
-  //     logger.error(`Failed to download and decrypt data: ${error}`);
-  //     return {
-  //       success: false,
-  //       error: error instanceof Error ? error.message : String(error),
-  //     };
-  //   }
-  // }
+      logger.info('Decrypting data with Seal...');
+      // Create the Transaction for evaluating the seal_approve function.
+      const tx = new Transaction();
+      console.log(tx.pure.vector('u8', fromHex(id)));
+      tx.moveCall({
+        target: `${TESTNET_ALLOWLIST_PACKAGE_ID}::allowlist::seal_approve`,
+        arguments: [tx.pure.vector('u8', fromHex(id)), tx.object(allowlistId)],
+      });
+      const txBytes = await tx.build({
+        client: suiClient,
+        onlyTransactionKind: true,
+      });
+      // SUI_PRIVATE_KEY from env. TODO change to signer provider
+      const privateKey = process.env.SUI_PRIVATE_KEY;
+      const keypair = Ed25519Keypair.fromSecretKey(privateKey);
+
+      const sessionKey = new SessionKey({
+        address: keypair.getPublicKey().toSuiAddress(),
+        packageId: TESTNET_ALLOWLIST_PACKAGE_ID,
+        ttlMin: 10,
+        signer: keypair,
+      });
+
+      const decryptedBytes = await client.decrypt({
+        data: blob,
+        sessionKey,
+        txBytes,
+      });
+      return {
+        success: true,
+        data: decryptedBytes,
+      };
+    } catch (error) {
+      logger.error(`Failed to download and decrypt data: ${error}`);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : String(error),
+      };
+    }
+  }
 
   static async start(runtime: IAgentRuntime) {
     logger.info(

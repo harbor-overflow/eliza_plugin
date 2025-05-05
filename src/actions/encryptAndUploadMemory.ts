@@ -96,7 +96,7 @@ export const encryptAndUploadMemoryAction: Action = {
         return value === 'null' || value === null ? null : value;
       };
       const tableName =
-        getNullableValue(responseContentObj.tableName) ?? 'memories';
+        getNullableValue(responseContentObj.tableName) ?? 'messages';
       const deletable = getNullableValue(responseContentObj.deletable) ?? true;
       const epochs = getNullableValue(responseContentObj.epochs) ?? 3;
 
