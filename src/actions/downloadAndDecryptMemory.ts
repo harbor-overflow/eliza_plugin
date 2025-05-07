@@ -46,6 +46,16 @@ Response format should be formatted in a valid JSON block like this:
 Your response should include the valid JSON block and nothing else.
 `;
 
+function isValidMemory(item: any): item is Memory {
+  return (
+    item &&
+    typeof item === 'object' &&
+    typeof item.entityId === 'string' &&
+    typeof item.content === 'object' &&
+    typeof item.roomId === 'string'
+  );
+}
+
 export const downloadAndDecryptMemoryAction: Action = {
   name: 'DOWNLOAD_AND_DECRYPT_MEMORY',
   similes: [
@@ -91,11 +101,25 @@ export const downloadAndDecryptMemoryAction: Action = {
           responseContentObj.blobId,
           responseContentObj.allowlistId
         );
-      const decodedData = new TextDecoder().decode(data);
-      console.log('decodedData', decodedData);
-      const parsedData = JSON.parse(decodedData);
-      console.log('parsedData', parsedData);
+      if (success) {
+        const decodedData = new TextDecoder().decode(data);
+        const parsedData = JSON.parse(decodedData);
+        const validMemories = parsedData.filter(isValidMemory);
 
+        // add memories to current runtime
+        const agentId = runtime.agentId;
+        await Promise.all(
+          validMemories.map(async (memory: Memory) => {
+            const type = (memory as any).type;
+            const newMemory: Memory = {
+              ...memory,
+              agentId, // allocate current agentId
+              entityId: memory.entityId || agentId, // use current agentId if entityId is not set
+            };
+            return runtime.createMemory(newMemory, type, memory.unique);
+          })
+        );
+      }
       logger.info(`download memory success: ${success}`);
 
       const responseContent: Content = {
