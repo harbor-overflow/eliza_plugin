@@ -6,6 +6,7 @@ import { encryptAndUploadMemoryAction } from './actions/encryptAndUploadMemory';
 import { createAllowlistAction } from './actions/createAllowlist';
 import { addAllowlistAction } from './actions/addAllowlist';
 import { downloadAndDecryptMemoryAction } from './actions/downloadAndDecryptMemory';
+import { createServiceAction } from './actions/createService';
 
 /**
  * Defines the configuration schema for a plugin, including the validation rules for the plugin name.
@@ -101,6 +102,7 @@ export const harborPlugin: Plugin = {
     createAllowlistAction,
     addAllowlistAction,
     downloadAndDecryptMemoryAction,
+    createServiceAction,
   ],
   providers: [],
 };

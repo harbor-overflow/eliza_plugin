@@ -260,6 +260,75 @@ export class WalrusSealService extends Service {
     }
   }
 
+  async createServiceTask(fee: number, ttl: number, name: string) {
+    try {
+      const suiClient = new SuiClient({ url: getFullnodeUrl('testnet') });
+      const privateKey = process.env.SUI_PRIVATE_KEY;
+      const keypair = Ed25519Keypair.fromSecretKey(privateKey);
+
+      // create_service_entry 호출
+      const tx = new Transaction();
+      tx.moveCall({
+        target: `${TESTNET_ALLOWLIST_PACKAGE_ID}::subscription::create_service_entry`,
+        arguments: [
+          tx.pure.u64(fee),
+          tx.pure.u64(ttl),
+          tx.pure.string(name),
+        ],
+      });
+
+      // 발신자 설정 및 트랜잭션 서명
+      tx.setSender(keypair.getPublicKey().toSuiAddress());
+      const txBytes = await tx.build({ client: suiClient });
+      const signature = await keypair.signTransaction(txBytes);
+
+      // 트랜잭션 실행
+      const result = await suiClient.executeTransactionBlock({
+        transactionBlock: txBytes,
+        signature: signature.signature,
+        options: {
+          showEffects: true,
+          showObjectChanges: true,
+        },
+        requestType: 'WaitForLocalExecution',
+      });
+
+      // 생성된 Service와 Cap 객체 찾기
+      const service = result.objectChanges.find(
+        (change) =>
+          change.type === 'created' &&
+          change.objectType ===
+            `${TESTNET_ALLOWLIST_PACKAGE_ID}::subscription::Service`
+      ) as SuiObjectCreateChange;
+      if (!service) {
+        throw new Error('Failed to create service entry');
+      }
+
+      const cap = result.objectChanges.find(
+        (change) =>
+          change.type === 'created' &&
+          change.objectType ===
+            `${TESTNET_ALLOWLIST_PACKAGE_ID}::subscription::Cap`
+      ) as SuiObjectCreateChange;
+      if (!cap) {
+        throw new Error('Failed to create service entry');
+      }
+
+      return {
+        success: true,
+        serviceId: service.objectId,
+        capId: cap.objectId,
+        transactionDigest: result.digest,
+      };
+    } catch (error) {
+      logger.error(`Failed to create service entry: ${error}`);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : String(error),
+      };
+    }
+  }
+
   static async start(runtime: IAgentRuntime) {
     logger.info(
       `*** Starting starter service - MODIFIED: ${new Date().toISOString()} ***`
