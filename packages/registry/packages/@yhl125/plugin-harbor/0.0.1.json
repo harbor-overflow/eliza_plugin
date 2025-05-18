@@ -1,0 +1,27 @@
+{
+  "name": "@yhl125/plugin-harbor",
+  "version": "0.0.1",
+  "description": "Plugin starter for elizaOS",
+  "type": "plugin",
+  "platform": "universal",
+  "runtimeVersion": "1.0.0-beta.41",
+  "repository": "github:elizaos-plugins/plugin-harbor",
+  "maintainers": [
+    "yhl125"
+  ],
+  "publishedAt": "2025-05-07T10:18:14.732Z",
+  "publishedBy": "yhl125",
+  "dependencies": {
+    "@elizaos/cli": "1.0.0-beta.41",
+    "@elizaos/core": "1.0.0-beta.41",
+    "@elizaos/plugin-bootstrap": "1.0.0-beta.41",
+    "@elizaos/plugin-openai": "1.0.0-beta.41",
+    "@elizaos/plugin-sql": "^1.0.0-beta.41",
+    "@mysten/seal": "^0.4.2",
+    "@mysten/sui": "^1.29.1",
+    "@mysten/walrus": "^0.0.21",
+    "zod": "3.24.2"
+  },
+  "tags": [],
+  "license": "UNLICENSED"
+}

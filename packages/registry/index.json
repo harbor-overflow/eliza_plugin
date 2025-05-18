@@ -1,0 +1,23 @@
+{
+  "v1": {
+    "packages": {}
+  },
+  "v2": {
+    "packages": {
+      "@yhl125/plugin-harbor": {
+        "name": "@yhl125/plugin-harbor",
+        "description": "Plugin starter for elizaOS",
+        "type": "plugin",
+        "versions": {
+          "0.0.1": {
+            "version": "0.0.1",
+            "runtimeVersion": "1.0.0-beta.41",
+            "platform": "universal",
+            "publishedAt": "2025-05-07T10:18:14.732Z",
+            "published": false
+          }
+        }
+      }
+    }
+  }
+}
