@@ -154,9 +154,9 @@ export const harborPlugin: Plugin = {
     },
     {
       type: 'DELETE',
-      path: '/delete/:fileId',
+      path: '/delete',
       handler: async (req, res) => {
-        const { fileId } = req.params;
+        const fileId = req.query.fileId as string;
         if (!fileId) {
           return res.status(400).json({
             success: false,
@@ -181,10 +181,17 @@ export const harborPlugin: Plugin = {
     },
     {
       type: 'GET',
-      path: '/download/:token',
+      path: '/download',
       handler: async (req, res) => {
         try {
-          const { token } = req.params;
+          const token = req.query.token as string;
+
+          if (!token) {
+            return res.status(400).json({
+              success: false,
+              error: 'Token parameter is required',
+            });
+          }
 
           // check file token
           if (!global.downloadTokens || !global.downloadTokens.has(token)) {
