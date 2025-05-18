@@ -114,7 +114,7 @@ export const downloadAndDecryptMemoryAction: Action = {
             const newMemory: Memory = {
               ...memory,
               agentId, // allocate current agentId
-              entityId: memory.entityId || agentId, // use current agentId if entityId is not set
+              entityId: message.entityId, // use current agentId if entityId is not set
             };
             return runtime.createMemory(newMemory, type, memory.unique);
           })
