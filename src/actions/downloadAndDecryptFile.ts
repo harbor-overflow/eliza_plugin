@@ -11,6 +11,7 @@ import {
   parseJSONObjectFromText,
 } from '@elizaos/core';
 import { WalrusSealService } from 'src/service';
+import mime from 'mime';
 
 const downloadAndDecryptFileTemplate = `# Task: Download and Decrypt File
 
@@ -21,25 +22,27 @@ const downloadAndDecryptFileTemplate = `# Task: Download and Decrypt File
 Extract the following fields from the user’s last message:
 - blobId: string (required)
 - allowlistId: string (required)
+- fileName: string (required)
 
 # Examples
-User: download file blob abc123 allowlist 0xdef456  
-Assistant: {"blobId":"0xabc123","allowlistId":"0xdef456"}
+User: download file blob abc123 allowlist 0xdef456 fileName myfile.txt
+Assistant: {"blobId":"abc123","allowlistId":"0xdef456","fileName":"myfile.txt"}
 
-User: decrypt file feedbeef using allowlist 0xdeadbeef  
-Assistant: {"blobId":"feedbeef","allowlistId":"0xdeadbeef"}
+User: decrypt file feedbeef using allowlist 0xdeadbeef fileName report.pdf
+Assistant: {"blobId":"feedbeef","allowlistId":"0xdeadbeef","fileName":"report.pdf"}
 
-User: download file blob 111aaa with allowlist 0x222bbb  
-Assistant: {"blobId":"111aaa","allowlistId":"0x222bbb"}
+User: download file blob 111aaa with allowlist 0x222bbb fileName image.png
+Assistant: {"blobId":"111aaa","allowlistId":"0x222bbb","fileName":"image.png"}
 
-User: download file {blobId: "999fff", allowlistId: "0x888eee"}  
-Assistant: {"blobId":"999fff","allowlistId":"0x888eee"}
+User: download file {blobId: "999fff", allowlistId: "0x888eee", fileName: "data.xlsx"}
+Assistant: {"blobId":"999fff","allowlistId":"0x888eee","fileName":"data.xlsx"}
 
 Response format should be formatted in a valid JSON block like this:
 \`\`\`json
 {
   "blobId": string,
-  "allowlistId": string
+  "allowlistId": string,
+  "fileName": string
 }
 \`\`\`
 
@@ -91,6 +94,9 @@ export const downloadAndDecryptFileAction: Action = {
       const responseContentObj = parseJSONObjectFromText(response);
       console.log('responseContentObj', responseContentObj);
 
+      // check fileName
+      const fileName = responseContentObj.fileName || 'downloaded-file';
+
       const memoryWalrusSealService = new WalrusSealService(runtime);
       const { success, data, error } =
         await memoryWalrusSealService.createDownloadAndDecryptTask(
@@ -99,12 +105,40 @@ export const downloadAndDecryptFileAction: Action = {
         );
       logger.info(`download file success: ${success}`);
 
+      // if success, create a download link
+      let downloadLink = '';
+      if (success && data) {
+        // create a unique token for the download link using UUID v4
+        const downloadToken = crypto.randomUUID();
+
+        // get mime type from file extension
+        const contentType = mime.getType(fileName.split('.').pop());
+
+        // save file data in global storage
+        if (!global.downloadTokens) {
+          global.downloadTokens = new Map();
+        }
+        global.downloadTokens.set(downloadToken, data);
+
+        // save metadata for the file
+        if (!global.downloadMetadata) {
+          global.downloadMetadata = new Map();
+        }
+        global.downloadMetadata.set(downloadToken, {
+          filename: fileName,
+          contentType: contentType,
+        });
+
+        // create download link
+        const baseUrl = process.env.BASE_URL || 'http://localhost:3000';
+        downloadLink = `${baseUrl}/api/download/${downloadToken}`;
+      }
+
       const responseContent: Content = {
         text: success
-          ? `file downloaded successfully!`
-          : `Failed to upload file: ${error}`,
+          ? `File downloaded successfully. [Download File](${downloadLink})`
+          : `Failed to download file: ${error}`,
         actions: ['DOWNLOAD_AND_DECRYPT_FILE'],
-        data: data,
       };
 
       await callback(responseContent);
@@ -120,7 +154,7 @@ export const downloadAndDecryptFileAction: Action = {
       {
         name: '{{name1}}',
         content: {
-          text: 'download file blob abc123 allowlist 0xdef456',
+          text: 'download file blob abc123 allowlist 0xdef456 fileName myfile.txt',
         },
       },
       {
@@ -135,7 +169,7 @@ export const downloadAndDecryptFileAction: Action = {
       {
         name: '{{name1}}',
         content: {
-          text: 'decrypt file feedbeef using allowlist 0xdeadbeef',
+          text: 'decrypt file feedbeef using allowlist 0xdeadbeef fileName report.pdf',
         },
       },
       {
@@ -150,7 +184,7 @@ export const downloadAndDecryptFileAction: Action = {
       {
         name: '{{name1}}',
         content: {
-          text: 'download file {blobId: "999fff", allowlistId: "0x888eee"}',
+          text: 'download file {blobId: "999fff", allowlistId: "0x888eee", fileName: "data.xlsx"}',
         },
       },
       {

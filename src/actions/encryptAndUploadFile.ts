@@ -22,29 +22,31 @@ Extract the following fields from the user’s last message:
 - allowlistId: string (required)
 - deletable: boolean or null
 - epochs: number or null
+- fileName: string (required)
 
 # Examples
-User: upload file 0x123abc  
-Assistant: {"allowlistId":"0x123abc","deletable":null,"epochs":null}
+User: upload file 0x123abc  fileName: myfile.txt
+Assistant: {"fileName":"myfile.txt","allowlistId":"0x123abc","deletable":null,"epochs":null}
 
-User: upload this file 0x123abc  
-Assistant: {"allowlistId":"0x123abc","deletable":null,"epochs":null}
+User: upload this file 0x123abc  fileName: myfile.png
+Assistant: {"fileName":"myfile.png","allowlistId":"0x123abc","deletable":null,"epochs":null}
 
-User: upload file to 0x123abc with deletable  
-Assistant: {"allowlistId":"0x123abc",""deletable":true,"epochs":null}
+User: upload file to 0x123abc with deletable fileName: myfile.png
+Assistant: {"fileName":"myfile.png","allowlistId":"0x123abc",""deletable":true,"epochs":null}
 
-User: upload file 0x123abc with not deletable  
-Assistant: {"allowlistId":"0x123abc",""deletable":false,"epochs":null}
+User: upload file 0x123abc with not deletable fileName: myPdf.pdf
+Assistant: {"fileName":"myPdf.pdf","allowlistId":"0x123abc",""deletable":false,"epochs":null}
 
-User: upload this file 0x123abc with 5 epochs
-Assistant: {"allowlistId":"0x123abc","deletable":null,"epochs":5}
+User: upload this file 0x123abc with 5 epochs fileName: myfile.png
+Assistant: {"fileName":"myfile.png","allowlistId":"0x123abc","deletable":null,"epochs":5}
 
-User: upload file {"0x123abc", true, 5}
-Assistant: {"allowlistId":"0x123abc","deletable":true,"epochs":5}
+User: upload file {"0x123abc", true, 5} fileName: myfile.png
+Assistant: {"fileName":"myfile.png","allowlistId":"0x123abc","deletable":true,"epochs":5}
 
 Response format should be formatted in a valid JSON block like this:
 \`\`\`json
 {
+  "fileName": string,
   "allowlistId": string,
   "deletable": boolean | null,
   "epochs": number | null
@@ -95,9 +97,9 @@ export const encryptAndUploadFileAction: Action = {
       };
       const deletable = getNullableValue(responseContentObj.deletable) ?? true;
       const epochs = getNullableValue(responseContentObj.epochs) ?? 3;
+      const fileName = responseContentObj.fileName;
 
       // get file from temporary storage
-      const fileName = message.content.fileName;
       if (!fileName || !global.tempFiles || !global.tempFiles.has(fileName)) {
         const responseContent: Content = {
           text: `No uploaded file found. Please upload a file first.`,
@@ -144,7 +146,7 @@ export const encryptAndUploadFileAction: Action = {
       {
         name: '{{name1}}',
         content: {
-          text: 'upload file 0x123abc',
+          text: 'upload file 0x123abc fileName: myfile.txt',
         },
       },
       {
@@ -159,7 +161,7 @@ export const encryptAndUploadFileAction: Action = {
       {
         name: '{{name1}}',
         content: {
-          text: 'upload file {"0x123abc", true, 5}',
+          text: 'upload file {"0x123abc", true, 5} fileName: myfile.png',
         },
       },
       {
@@ -174,7 +176,7 @@ export const encryptAndUploadFileAction: Action = {
       {
         name: '{{name1}}',
         content: {
-          text: 'upload this file 0x123abc with not deletable',
+          text: 'upload this file 0x123abc with not deletable fileName: myfile.png',
         },
       },
       {

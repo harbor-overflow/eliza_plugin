@@ -9,6 +9,7 @@ import { downloadAndDecryptMemoryAction } from './actions/downloadAndDecryptMemo
 import { createServiceAction } from './actions/createService';
 import { encryptAndUploadFileAction } from './actions/encryptAndUploadFile';
 import multer from 'multer';
+import { downloadAndDecryptFileAction } from './actions/downloadAndDecryptFile';
 
 /**
  * Defines the configuration schema for a plugin, including the validation rules for the plugin name.
@@ -178,6 +179,51 @@ export const harborPlugin: Plugin = {
         }
       },
     },
+    {
+      type: 'GET',
+      path: '/download/:token',
+      handler: async (req, res) => {
+        try {
+          const { token } = req.params;
+
+          // check file token
+          if (!global.downloadTokens || !global.downloadTokens.has(token)) {
+            return res.status(404).json({
+              success: false,
+              error: 'Invalid download token or file expired',
+            });
+          }
+
+          const fileData = global.downloadTokens.get(token);
+          const fileInfo = global.downloadMetadata?.get(token) || {
+            filename: 'downloaded-file',
+            contentType: 'application/octet-stream',
+          };
+
+          // set headers for file download
+          res.setHeader(
+            'Content-Disposition',
+            `attachment; filename="${fileInfo.filename}"`
+          );
+          res.setHeader('Content-Type', fileInfo.contentType);
+
+          // send file data
+          res.send(Buffer.from(fileData));
+
+          // delete the token after download
+          global.downloadTokens.delete(token);
+          if (global.downloadMetadata) {
+            global.downloadMetadata.delete(token);
+          }
+        } catch (error) {
+          logger.error(`Error in file download API: ${error}`);
+          res.status(500).json({
+            success: false,
+            error: error.message || 'Internal server error',
+          });
+        }
+      },
+    },
   ],
   events: {},
   services: [WalrusSealService],
@@ -187,6 +233,7 @@ export const harborPlugin: Plugin = {
     createAllowlistAction,
     addAllowlistAction,
     downloadAndDecryptMemoryAction,
+    downloadAndDecryptFileAction,
     createServiceAction,
   ],
   providers: [],
