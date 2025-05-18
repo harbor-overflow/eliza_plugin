@@ -131,7 +131,7 @@ export const downloadAndDecryptFileAction: Action = {
 
         // create download link
         const baseUrl = process.env.BASE_URL || 'http://localhost:3000';
-        downloadLink = `${baseUrl}/api/download/${downloadToken}`;
+        downloadLink = `${baseUrl}/api/download?token=${downloadToken}`;
       }
 
       const responseContent: Content = {
