@@ -329,6 +329,152 @@ export class WalrusSealService extends Service {
     }
   }
 
+  async mintFileNFTTask(
+    blobId: string,
+    fileName: string,
+    fileSize: number,
+    endEpoch: number,
+    paymentAmount: number
+  ) {
+    try {
+      const suiClient = new SuiClient({ url: getFullnodeUrl('testnet') });
+      const privateKey = process.env.SUI_PRIVATE_KEY;
+      if (!privateKey) {
+        throw new Error('SUI_PRIVATE_KEY environment variable is not set');
+      }
+      const keypair = Ed25519Keypair.fromSecretKey(privateKey);
+      
+      const packageId = process.env.FILE_NFT_PACKAGE_ID;
+      const adminCapId = process.env.FILE_NFT_ADMIN_CAP_ID;
+      
+      if (!packageId || !adminCapId) {
+        throw new Error('FILE_NFT_PACKAGE_ID or FILE_NFT_ADMIN_CAP_ID environment variable is not set');
+      }
+      
+      // 트랜잭션 생성
+      const tx = new Transaction();
+      
+      // SUI 코인 생성
+      const [paymentCoin] = tx.splitCoins(tx.gas, [tx.pure.u64(paymentAmount)]);
+      
+      // file_nft::public_mint 함수 호출
+      tx.moveCall({
+        target: `${packageId}::file_nft::public_mint`,
+        arguments: [
+          tx.object(adminCapId),
+          tx.pure.string(blobId),
+          tx.pure.string(fileName),
+          tx.pure.u64(endEpoch),
+          tx.pure.u64(fileSize),
+          tx.pure.u8(0), // resource_type: 0 = 파일
+          paymentCoin,
+        ],
+      });
+      
+      // 트랜잭션 실행
+      const result = await suiClient.signAndExecuteTransaction({
+        signer: keypair,
+        transaction: tx,
+        options: {
+          showEffects: true,
+          showObjectChanges: true,
+        },
+      });
+      
+      // NFT objectId 추출
+      const nftObj = result.objectChanges?.find(
+        (change) => 
+          change.type === 'created' && 
+          change.objectType.includes('::file_nft::FileNFT')
+      );
+      
+      return {
+        success: true,
+        nftId: nftObj && 'objectId' in nftObj ? nftObj.objectId : undefined,
+        transactionDigest: result.digest
+      };
+    } catch (error) {
+      logger.error(`Failed to mint File NFT: ${error}`);
+      return {
+        success: false, 
+        error: error instanceof Error ? error.message : String(error)
+      };
+    }
+  }
+
+  async mintMemoryNFTTask(
+    blobId: string,
+    memoryName: string,
+    memorySize: number,
+    endEpoch: number,
+    paymentAmount: number
+  ) {
+    try {
+      const suiClient = new SuiClient({ url: getFullnodeUrl('testnet') });
+      const privateKey = process.env.SUI_PRIVATE_KEY;
+      if (!privateKey) {
+        throw new Error('SUI_PRIVATE_KEY environment variable is not set');
+      }
+      const keypair = Ed25519Keypair.fromSecretKey(privateKey);
+      
+      const packageId = process.env.FILE_NFT_PACKAGE_ID;
+      const adminCapId = process.env.FILE_NFT_ADMIN_CAP_ID;
+      
+      if (!packageId || !adminCapId) {
+        throw new Error('FILE_NFT_PACKAGE_ID or FILE_NFT_ADMIN_CAP_ID environment variable is not set');
+      }
+      
+      // 트랜잭션 생성
+      const tx = new Transaction();
+      
+      // SUI 코인 생성
+      const [paymentCoin] = tx.splitCoins(tx.gas, [tx.pure.u64(paymentAmount)]);
+      
+      // file_nft::public_mint 함수 호출
+      tx.moveCall({
+        target: `${packageId}::file_nft::public_mint`,
+        arguments: [
+          tx.object(adminCapId),
+          tx.pure.string(blobId),
+          tx.pure.string(memoryName),
+          tx.pure.u64(endEpoch),
+          tx.pure.u64(memorySize),
+          tx.pure.u8(1), // resource_type: 1 = 메모리
+          paymentCoin,
+        ],
+      });
+      
+      // 트랜잭션 실행
+      const result = await suiClient.signAndExecuteTransaction({
+        signer: keypair,
+        transaction: tx,
+        options: {
+          showEffects: true,
+          showObjectChanges: true,
+        },
+      });
+      
+      // NFT objectId 추출
+      const nftObj = result.objectChanges?.find(
+        (change) => 
+          change.type === 'created' && 
+          change.objectType.includes('::file_nft::FileNFT')
+      );
+      
+      return {
+        success: true,
+        nftId: nftObj && 'objectId' in nftObj ? nftObj.objectId : undefined,
+        transactionDigest: result.digest
+      };
+    } catch (error) {
+      logger.error(`Failed to mint Memory NFT: ${error}`);
+      return {
+        success: false, 
+        error: error instanceof Error ? error.message : String(error)
+      };
+    }
+  }
+
   static async start(runtime: IAgentRuntime) {
     logger.info(
       `*** Starting starter service - MODIFIED: ${new Date().toISOString()} ***`

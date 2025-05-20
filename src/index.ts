@@ -10,6 +10,8 @@ import { createServiceAction } from './actions/createService';
 import { encryptAndUploadFileAction } from './actions/encryptAndUploadFile';
 import multer from 'multer';
 import { downloadAndDecryptFileAction } from './actions/downloadAndDecryptFile';
+import { mintFileNFTAction } from './actions/mintFileNFT';
+import { mintMemoryNFTAction } from './actions/mintMemoryNFT';
 
 /**
  * Defines the configuration schema for a plugin, including the validation rules for the plugin name.
@@ -29,6 +31,14 @@ const configSchema = z.object({
       }
       return val;
     }),
+  FILE_NFT_PACKAGE_ID: z
+    .string()
+    .min(1, 'FILE_NFT_PACKAGE_ID is not provided')
+    .optional(),
+  FILE_NFT_ADMIN_CAP_ID: z
+    .string()
+    .min(1, 'FILE_NFT_ADMIN_CAP_ID is not provided')
+    .optional(),
 });
 
 export const harborPlugin: Plugin = {
@@ -242,6 +252,8 @@ export const harborPlugin: Plugin = {
     downloadAndDecryptMemoryAction,
     downloadAndDecryptFileAction,
     createServiceAction,
+    mintFileNFTAction,
+    mintMemoryNFTAction,
   ],
   providers: [],
 };

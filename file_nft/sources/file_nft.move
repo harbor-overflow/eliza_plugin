@@ -122,4 +122,16 @@ module file_nft::file_nft {
     public fun get_file_size(nft: &FileNFT): u64 { nft.file_size }
     public fun get_owner(nft: &FileNFT): address { nft.owner }
     public fun get_resource_type(nft: &FileNFT): u8 { nft.resource_type }
+
+    /// AdminCap 소유권 이전
+    public entry fun transfer_admin_cap(
+        admin_cap: &mut AdminCap,
+        new_owner: address,
+        ctx: &mut TxContext
+    ) {
+        // 현재 소유자만 이전 가능
+        assert!(sender(ctx) == admin_cap.owner, 1);
+        // 새로운 소유자로 변경
+        admin_cap.owner = new_owner;
+    }
 }
