@@ -12,6 +12,16 @@ import multer from 'multer';
 import { downloadAndDecryptFileAction } from './actions/downloadAndDecryptFile';
 import { mintFileNFTAction } from './actions/mintFileNFT';
 import { mintMemoryNFTAction } from './actions/mintMemoryNFT';
+import path from 'path';
+import fs from 'fs';
+import crypto from 'crypto';
+
+const MAX_CHUNK_SIZE = 10 * 1024 * 1024; // 5MB 청크 사이즈 (멀터 한계보다 작게)
+const UPLOAD_DIR = path.join(process.cwd(), 'data/uploads');
+
+if (!fs.existsSync(UPLOAD_DIR)) {
+  fs.mkdirSync(UPLOAD_DIR, { recursive: true });
+}
 
 /**
  * Defines the configuration schema for a plugin, including the validation rules for the plugin name.
@@ -25,26 +35,17 @@ const configSchema = z.object({
     .optional()
     .transform((val) => {
       if (!val) {
-        logger.warn(
-          'Example plugin variable is not provided (this is expected)'
-        );
+        logger.warn('Example plugin variable is not provided (this is expected)');
       }
       return val;
     }),
-  FILE_NFT_PACKAGE_ID: z
-    .string()
-    .min(1, 'FILE_NFT_PACKAGE_ID is not provided')
-    .optional(),
-  FILE_NFT_ADMIN_CAP_ID: z
-    .string()
-    .min(1, 'FILE_NFT_ADMIN_CAP_ID is not provided')
-    .optional(),
+  FILE_NFT_PACKAGE_ID: z.string().min(1, 'FILE_NFT_PACKAGE_ID is not provided').optional(),
+  FILE_NFT_ADMIN_CAP_ID: z.string().min(1, 'FILE_NFT_ADMIN_CAP_ID is not provided').optional(),
 });
 
 export const harborPlugin: Plugin = {
   name: 'plugin-harbor',
-  description:
-    'Plugin harbor for upload and download encrypted memories with walrus and seal',
+  description: 'Plugin harbor for upload and download encrypted memories with walrus and seal',
   config: {
     EXAMPLE_PLUGIN_VARIABLE: process.env.EXAMPLE_PLUGIN_VARIABLE,
   },
@@ -56,6 +57,15 @@ export const harborPlugin: Plugin = {
       // Set all environment variables at once
       for (const [key, value] of Object.entries(validatedConfig)) {
         if (value) process.env[key] = value;
+      }
+
+      // Initialize global variables
+      if (!global.fileInfo) {
+        global.fileInfo = new Map();
+      }
+
+      if (!global.chunkInfo) {
+        global.chunkInfo = new Map();
       }
     } catch (error) {
       if (error instanceof z.ZodError) {
@@ -95,9 +105,7 @@ export const harborPlugin: Plugin = {
             // Check if the hello world action is registered
             // Look for the action in our plugin's actions
             // The actual action name in this plugin is "helloWorld", not "hello"
-            const actionExists = harborPlugin.actions.some(
-              (a) => a.name === 'HELLO_WORLD'
-            );
+            const actionExists = harborPlugin.actions.some((a) => a.name === 'HELLO_WORLD');
             console.log('Action exists:', actionExists);
             if (!actionExists) {
               throw new Error('Hello world action not found in plugin');
@@ -110,6 +118,199 @@ export const harborPlugin: Plugin = {
   routes: [
     {
       type: 'POST',
+      path: '/upload-chunk',
+      handler: async (req, res) => {
+        try {
+          // Configure multer for chunk upload
+          const storage = multer.memoryStorage();
+          const upload = multer({
+            storage: storage,
+            limits: { fileSize: MAX_CHUNK_SIZE + 1},
+          });
+
+          // Handle chunk upload
+          upload.single('file')(req, res, async (err) => {
+            if (err) {
+              return res.status(400).json({
+                success: false,
+                error: `Chunk upload error: ${err.message}`,
+              });
+            }
+
+            if (!req.file) {
+              return res.status(400).json({
+                success: false,
+                error: 'No chunk uploaded',
+              });
+            }
+
+            // Parse chunk metadata
+            const fileId = req.body.fileId || crypto.randomUUID();
+            const chunkIndex = parseInt(req.body.chunkIndex || '0', 10);
+            const totalChunks = parseInt(req.body.totalChunks || '1', 10);
+            const fileName = req.body.fileName || 'unknown';
+            const contentType =
+              req.body.contentType || req.file.mimetype || 'application/octet-stream';
+
+            // Create file directory
+            const fileDir = path.join(UPLOAD_DIR, fileId);
+            if (!fs.existsSync(fileDir)) {
+              fs.mkdirSync(fileDir, { recursive: true });
+            }
+
+            // Write chunk to disk
+            const chunkPath = path.join(fileDir, `chunk-${chunkIndex}`);
+            fs.writeFileSync(chunkPath, req.file.buffer);
+
+            if (!global.chunkInfo) {
+              global.chunkInfo = new Map();
+            }
+
+            // Update chunk tracking info
+            if (!global.chunkInfo.has(fileId)) {
+              global.chunkInfo.set(fileId, {
+                fileName,
+                totalChunks,
+                contentType,
+                receivedChunks: new Set(),
+                createdAt: Date.now(),
+                expiresAt: Date.now() + 24 * 60 * 60 * 1000, // 24시간 후 만료
+              });
+            }
+
+            console.log('global.chunkInfo: ', global.chunkInfo);
+
+            // Mark chunk as received
+            const fileInfo = global.chunkInfo.get(fileId);
+            fileInfo.receivedChunks.add(chunkIndex);
+
+            // Return response with fileId for subsequent chunks
+            return res.status(200).json({
+              success: true,
+              fileId,
+              chunkIndex,
+              receivedChunks: Array.from(fileInfo.receivedChunks),
+              totalChunks,
+              message: 'Chunk uploaded successfully',
+            });
+          });
+        } catch (error) {
+          logger.error(`Error in chunk upload API: ${error}`);
+          return res.status(500).json({
+            success: false,
+            error: error.message || 'Internal server error',
+          });
+        }
+      },
+    },
+    {
+      type: 'POST',
+      path: '/complete-upload',
+      handler: async (req, res) => {
+        try {
+          const { fileId } = req.body;
+
+          if (!fileId) {
+            return res.status(400).json({
+              success: false,
+              error: 'File ID is required',
+            });
+          }
+
+          // Validate file exists
+          if (!global.chunkInfo.has(fileId)) {
+            return res.status(404).json({
+              success: false,
+              error: 'File not found or no chunks uploaded',
+            });
+          }
+
+          const fileInfo = global.chunkInfo.get(fileId);
+
+          // Check if all chunks are uploaded
+          if (fileInfo.receivedChunks.size !== fileInfo.totalChunks) {
+            return res.status(400).json({
+              success: false,
+              error: `Missing chunks. Received ${fileInfo.receivedChunks.size} of ${fileInfo.totalChunks}`,
+              receivedChunks: Array.from(fileInfo.receivedChunks),
+              totalChunks: fileInfo.totalChunks,
+            });
+          }
+
+          // Prepare for file assembly
+          const fileDir = path.join(UPLOAD_DIR, fileId);
+          const outputPath = path.join(UPLOAD_DIR, `${fileId}-complete`);
+          const writeStream = fs.createWriteStream(outputPath);
+
+          // Combine chunks in order
+          for (let i = 0; i < fileInfo.totalChunks; i++) {
+            const chunkPath = path.join(fileDir, `chunk-${i}`);
+            if (fs.existsSync(chunkPath)) {
+              const chunkData = fs.readFileSync(chunkPath);
+              writeStream.write(chunkData);
+            } else {
+              // This shouldn't happen if we checked correctly
+              return res.status(500).json({
+                success: false,
+                error: `Chunk ${i} missing during assembly`,
+              });
+            }
+          }
+
+          writeStream.end();
+
+          // Wait for stream to finish
+          await new Promise((resolve) => {
+            writeStream.on('finish', resolve);
+          });
+
+          // Store file info for later use
+          if (!global.fileInfo) {
+            global.fileInfo = new Map();
+          }
+
+          // Get file size
+          const stats = fs.statSync(outputPath);
+
+          global.fileInfo.set(fileId, {
+            fileName: fileInfo.fileName,
+            filePath: outputPath,
+            contentType: fileInfo.contentType,
+            size: stats.size,
+            createdAt: Date.now(),
+            expiresAt: Date.now() + 24 * 60 * 60 * 1000, // 24시간 후 만료
+          });
+
+          // For backward compatibility
+          if (!global.tempFiles) {
+            global.tempFiles = new Map();
+          }
+
+          // Store file in memory for backward compatibility (if smaller than 10MB)
+          if (stats.size <= MAX_CHUNK_SIZE) {
+            const fileBuffer = fs.readFileSync(outputPath);
+            global.tempFiles.set(fileInfo.fileName, fileBuffer);
+          }
+
+          return res.status(200).json({
+            success: true,
+            fileId,
+            fileName: fileInfo.fileName,
+            fileSize: stats.size,
+            message: 'File assembly completed successfully',
+          });
+        } catch (error) {
+          logger.error(`Error in complete upload API: ${error}`);
+          return res.status(500).json({
+            success: false,
+            error: error.message || 'Internal server error',
+          });
+        }
+      },
+    },
+    {
+      // Legacy single-file upload (for backward compatibility)
+      type: 'POST',
       path: '/upload',
       handler: async (req, res) => {
         try {
@@ -117,11 +318,13 @@ export const harborPlugin: Plugin = {
           const storage = multer.memoryStorage();
           const upload = multer({
             storage: storage,
-            limits: { fileSize: 10 * 1024 * 1024 }, // 10MB limit
+            limits: { fileSize: MAX_CHUNK_SIZE }, // 10MB limit
           });
           // Handle file upload
           upload.single('file')(req, res, async (err) => {
             console.log('Multer upload handler called');
+            console.log('upload');
+
             if (err) {
               return res.status(400).json({
                 success: false,
@@ -138,6 +341,13 @@ export const harborPlugin: Plugin = {
 
             // Create and save file ID
             const fileBuffer = req.file.buffer;
+            const fileId = crypto.randomUUID();
+            const filePath = path.join(UPLOAD_DIR, `${fileId}-complete`);
+
+            console.log('upload::filepath: ', filePath);
+
+            // Save file to disk
+            fs.writeFileSync(filePath, fileBuffer);
 
             // Save file in temporary storage
             if (!global.tempFiles) {
@@ -146,8 +356,23 @@ export const harborPlugin: Plugin = {
             }
             global.tempFiles.set(req.file.originalname, fileBuffer);
 
+            // Save file info
+            if (!global.fileInfo) {
+              global.fileInfo = new Map();
+            }
+
+            global.fileInfo.set(fileId, {
+              fileName: req.file.originalname,
+              filePath: filePath,
+              contentType: req.file.mimetype,
+              size: req.file.size,
+              createdAt: Date.now(),
+              expiresAt: Date.now() + 24 * 60 * 60 * 1000, // 24시간 후 만료
+            });
+
             return res.status(200).json({
               success: true,
+              fileId,
               fileName: req.file.originalname,
               fileSize: req.file.size,
               message: 'File received successfully',
@@ -174,17 +399,58 @@ export const harborPlugin: Plugin = {
           });
         }
 
-        // Check if the file exists in temporary storage
-        if (global.tempFiles && global.tempFiles.has(fileId)) {
-          global.tempFiles.delete(fileId);
-          return res.status(200).json({
-            success: true,
-            message: `File with ID ${fileId} deleted successfully`,
-          });
-        } else {
-          return res.status(404).json({
+        try {
+          // Check if the file exists
+          const fileExists = global.fileInfo && global.fileInfo.has(fileId);
+          const inTempFiles = global.tempFiles && global.tempFiles.has(fileId);
+
+          if (fileExists) {
+            // Get file information
+            const fileInfo = global.fileInfo.get(fileId);
+
+            // Delete file from disk
+            if (fileInfo.filePath && fs.existsSync(fileInfo.filePath)) {
+              fs.unlinkSync(fileInfo.filePath);
+            }
+
+            // Delete chunk directory if exists
+            const chunkDir = path.join(UPLOAD_DIR, fileId);
+            if (fs.existsSync(chunkDir)) {
+              // Delete all chunks
+              const files = fs.readdirSync(chunkDir);
+              for (const file of files) {
+                fs.unlinkSync(path.join(chunkDir, file));
+              }
+              // Remove directory
+              fs.rmdirSync(chunkDir);
+            }
+
+            // Remove from maps
+            global.fileInfo.delete(fileId);
+            global.chunkInfo?.delete(fileId);
+
+            return res.status(200).json({
+              success: true,
+              message: `File with ID ${fileId} deleted successfully`,
+            });
+          } else if (inTempFiles) {
+            // Legacy compatibility - delete from tempFiles
+            global.tempFiles.delete(fileId);
+            return res.status(200).json({
+              success: true,
+              message: `File with ID ${fileId} deleted successfully`,
+            });
+          } else {
+            return res.status(404).json({
+              success: false,
+              error: `File with ID ${fileId} not found`,
+            });
+          }
+        } catch (error) {
+          logger.error(`Error deleting file: ${error}`);
+          return res.status(500).json({
             success: false,
-            error: `File with ID ${fileId} not found`,
+            error: error.message || 'Internal server error',
           });
         }
       },
@@ -217,15 +483,35 @@ export const harborPlugin: Plugin = {
             contentType: 'application/octet-stream',
           };
 
-          // set headers for file download
-          res.setHeader(
-            'Content-Disposition',
-            `attachment; filename="${fileInfo.filename}"`
-          );
-          res.setHeader('Content-Type', fileInfo.contentType);
+          // Support for range requests
+          const rangeHeader = req.headers.range;
+          if (rangeHeader) {
+            const fileSize = fileData.length;
+            const parts = rangeHeader.replace(/bytes=/, '').split('-');
+            const start = parseInt(parts[0], 10);
+            const end = parts[1] ? parseInt(parts[1], 10) : fileSize - 1;
 
-          // send file data
-          res.send(Buffer.from(fileData));
+            const chunkSize = end - start + 1;
+            const chunk = Buffer.from(fileData).slice(start, end + 1);
+
+            res.writeHead(206, {
+              'Content-Range': `bytes ${start}-${end}/${fileSize}`,
+              'Accept-Ranges': 'bytes',
+              'Content-Length': chunkSize,
+              'Content-Type': fileInfo.contentType,
+              'Content-Disposition': `attachment; filename="${fileInfo.filename}"`,
+            });
+
+            res.end(chunk);
+          } else {
+            // set headers for file download
+            res.setHeader('Content-Disposition', `attachment; filename="${fileInfo.filename}"`);
+            res.setHeader('Content-Type', fileInfo.contentType);
+            res.setHeader('Content-Length', fileData.length);
+
+            // send file data
+            res.send(Buffer.from(fileData));
+          }
 
           // delete the token after download
           global.downloadTokens.delete(token);
