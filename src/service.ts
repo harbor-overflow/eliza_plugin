@@ -149,6 +149,73 @@ export class WalrusSealService extends Service {
     }
   }
 
+  async createEncryptTask(
+    dataToEncrypt: Uint8Array<ArrayBufferLike>,
+    allowlistId: string
+  ) {
+    try {
+      // suiClient, sealClient setup
+      const suiClient = new SuiClient({ url: getFullnodeUrl('testnet') });
+      const client = new SealClient({
+        suiClient,
+        serverObjectIds: getAllowlistedKeyServers('testnet').map((id) => [
+          id,
+          1,
+        ]),
+        verifyKeyServers: false,
+      });
+
+      logger.info('Encrypting data with Seal...');
+
+      // encrypt the data with seal
+      const { encryptedObject: encryptedBytes } = await client.encrypt({
+        threshold: 2,
+        packageId: TESTNET_ALLOWLIST_PACKAGE_ID,
+        id: allowlistId,
+        data: dataToEncrypt,
+      });
+      return encryptedBytes;
+    } catch (error) {
+      logger.error(`Failed to encrypt data: ${error}`);
+      return error;
+    }
+  }
+
+  async createUploadTask(
+    data: Uint8Array<ArrayBufferLike>,
+    deletable: boolean = true,
+    epochs: number = 3
+  ) {
+    try {
+      // suiClient, walrusClient setup
+      const suiClient = new SuiClient({ url: getFullnodeUrl('testnet') });
+      const walrusClient = new WalrusClient({
+        network: 'testnet',
+        suiClient,
+      });
+      // SUI_PRIVATE_KEY from env. TODO change to signer provider
+      const privateKey = process.env.SUI_PRIVATE_KEY;
+      const keypair = Ed25519Keypair.fromSecretKey(privateKey);
+      logger.info('writing blob to walrus...');
+      const storageInfo = await walrusClient.writeBlob({
+        blob: data,
+        deletable: deletable,
+        epochs: epochs,
+        signer: keypair,
+      });
+      return {
+        success: true,
+        blobId: storageInfo.blobId,
+      };
+    } catch (error) {
+      logger.error(`Failed to upload data: ${error}`);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : String(error),
+      };
+    }
+  }
+
   async createEncryptAndUploadTask(
     dataToEncrypt: Uint8Array<ArrayBufferLike>,
     allowlistId: string,
@@ -156,42 +223,38 @@ export class WalrusSealService extends Service {
     epochs: number = 3
   ) {
     try {
-      // suiClient, sealClient, walrusClient setup
-      const suiClient = new SuiClient({ url: getFullnodeUrl('testnet') });
-      const client = new SealClient({
-        suiClient,
-        serverObjectIds: getAllowlistedKeyServers('testnet'),
-        verifyKeyServers: false,
-      });
-      const walrusClient = new WalrusClient({
-        network: 'testnet',
-        suiClient,
-      });
+      logger.info('Starting encrypt and upload process...');
 
-      // SUI_PRIVATE_KEY from env. TODO change to signer provider
-      const privateKey = process.env.SUI_PRIVATE_KEY;
-      const keypair = Ed25519Keypair.fromSecretKey(privateKey);
+      // 1. encrypt the data
+      const encryptedBytes = await this.createEncryptTask(
+        dataToEncrypt,
+        allowlistId
+      );
 
-      logger.info('Encrypting data with Seal...');
+      // Check if encryption was successful
+      if (encryptedBytes instanceof Error) {
+        throw encryptedBytes;
+      }
 
-      // encrypt the data with seal and upload it to walrus
-      const { encryptedObject: encryptedBytes } = await client.encrypt({
-        threshold: 2,
-        packageId: TESTNET_ALLOWLIST_PACKAGE_ID,
-        id: allowlistId,
-        data: dataToEncrypt,
-      });
-      logger.info('writing blob to walrus...');
-      const storageInfo = await walrusClient.writeBlob({
-        blob: encryptedBytes,
-        deletable: deletable,
-        epochs: epochs,
-        signer: keypair,
-      });
+      // 2. upload the encrypted data
+      const uploadResult = await this.createUploadTask(
+        encryptedBytes,
+        deletable,
+        epochs
+      );
+
+      // Check if upload was successful
+      if (!uploadResult.success) {
+        throw new Error(uploadResult.error);
+      }
+
+      logger.info(
+        `Data successfully encrypted and uploaded with blob ID: ${uploadResult.blobId}`
+      );
 
       return {
         success: true,
-        blobId: storageInfo.blobId,
+        blobId: uploadResult.blobId,
       };
     } catch (error) {
       logger.error(`Failed to encrypt and upload data: ${error}`);
@@ -202,27 +265,53 @@ export class WalrusSealService extends Service {
     }
   }
 
-  async createDownloadAndDecryptTask(blobId: string, allowlistId: string) {
+  async createDownloadTask(blobId: string) {
     try {
-      // suiClient, sealClient, walrusClient setup
+      // walrusClient setup
       const suiClient = new SuiClient({ url: getFullnodeUrl('testnet') });
-      const client = new SealClient({
-        suiClient,
-        serverObjectIds: getAllowlistedKeyServers('testnet'),
-        verifyKeyServers: false,
-      });
       const walrusClient = new WalrusClient({
         network: 'testnet',
         suiClient,
       });
-      logger.info('Downloading blob from walrus...');
-      const blob = await walrusClient.readBlob({ blobId });
-      const id = EncryptedObject.parse(new Uint8Array(blob)).id;
 
-      logger.info('Decrypting data with Seal...');
-      // Create the Transaction for evaluating the seal_approve function.
+      logger.info(`Downloading blob with ID ${blobId} from walrus...`);
+      const blob = await walrusClient.readBlob({ blobId });
+
+      return {
+        success: true,
+        data: blob,
+      };
+    } catch (error) {
+      logger.error(`Failed to download blob: ${error}`);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : String(error),
+      };
+    }
+  }
+
+  async createDecryptTask(
+    encryptedData: Uint8Array<ArrayBufferLike>,
+    allowlistId: string
+  ) {
+    try {
+      // suiClient, sealClient setup
+      const suiClient = new SuiClient({ url: getFullnodeUrl('testnet') });
+      const client = new SealClient({
+        suiClient,
+        serverObjectIds: getAllowlistedKeyServers('testnet').map((id) => [
+          id,
+          1,
+        ]),
+        verifyKeyServers: false,
+      });
+
+      // 암호화 ID 추출
+      const id = EncryptedObject.parse(new Uint8Array(encryptedData)).id;
+
+      logger.info('Creating decryption transaction...');
+      // build seal_approve transaction
       const tx = new Transaction();
-      console.log(tx.pure.vector('u8', fromHex(id)));
       tx.moveCall({
         target: `${TESTNET_ALLOWLIST_PACKAGE_ID}::allowlist::seal_approve`,
         arguments: [tx.pure.vector('u8', fromHex(id)), tx.object(allowlistId)],
@@ -231,7 +320,8 @@ export class WalrusSealService extends Service {
         client: suiClient,
         onlyTransactionKind: true,
       });
-      // SUI_PRIVATE_KEY from env. TODO change to signer provider
+
+      // SUI_PRIVATE_KEY from env
       const privateKey = process.env.SUI_PRIVATE_KEY;
       const keypair = Ed25519Keypair.fromSecretKey(privateKey);
 
@@ -242,14 +332,54 @@ export class WalrusSealService extends Service {
         signer: keypair,
       });
 
+      logger.info('Decrypting data with Seal...');
       const decryptedBytes = await client.decrypt({
-        data: blob,
+        data: encryptedData,
         sessionKey,
         txBytes,
       });
+
       return {
         success: true,
         data: decryptedBytes,
+      };
+    } catch (error) {
+      logger.error(`Failed to decrypt data: ${error}`);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : String(error),
+      };
+    }
+  }
+
+  async createDownloadAndDecryptTask(blobId: string, allowlistId: string) {
+    try {
+      logger.info('Starting download and decrypt process...');
+
+      // 1. download the blob
+      const downloadResult = await this.createDownloadTask(blobId);
+
+      // check if download was successful
+      if (!downloadResult.success) {
+        throw new Error(downloadResult.error);
+      }
+
+      // 2. decrypt the downloaded data
+      const decryptResult = await this.createDecryptTask(
+        downloadResult.data,
+        allowlistId
+      );
+
+      // Check if decryption was successful
+      if (!decryptResult.success) {
+        throw new Error(decryptResult.error);
+      }
+
+      logger.info('Data successfully downloaded and decrypted');
+
+      return {
+        success: true,
+        data: decryptResult.data,
       };
     } catch (error) {
       logger.error(`Failed to download and decrypt data: ${error}`);
@@ -270,11 +400,7 @@ export class WalrusSealService extends Service {
       const tx = new Transaction();
       tx.moveCall({
         target: `${TESTNET_ALLOWLIST_PACKAGE_ID}::subscription::create_service_entry`,
-        arguments: [
-          tx.pure.u64(fee),
-          tx.pure.u64(ttl),
-          tx.pure.string(name),
-        ],
+        arguments: [tx.pure.u64(fee), tx.pure.u64(ttl), tx.pure.string(name)],
       });
 
       // 발신자 설정 및 트랜잭션 서명
@@ -343,20 +469,22 @@ export class WalrusSealService extends Service {
         throw new Error('SUI_PRIVATE_KEY environment variable is not set');
       }
       const keypair = Ed25519Keypair.fromSecretKey(privateKey);
-      
+
       const packageId = process.env.FILE_NFT_PACKAGE_ID;
       const adminCapId = process.env.FILE_NFT_ADMIN_CAP_ID;
-      
+
       if (!packageId || !adminCapId) {
-        throw new Error('FILE_NFT_PACKAGE_ID or FILE_NFT_ADMIN_CAP_ID environment variable is not set');
+        throw new Error(
+          'FILE_NFT_PACKAGE_ID or FILE_NFT_ADMIN_CAP_ID environment variable is not set'
+        );
       }
-      
+
       // 트랜잭션 생성
       const tx = new Transaction();
-      
+
       // SUI 코인 생성
       const [paymentCoin] = tx.splitCoins(tx.gas, [tx.pure.u64(paymentAmount)]);
-      
+
       // file_nft::public_mint 함수 호출
       tx.moveCall({
         target: `${packageId}::file_nft::public_mint`,
@@ -370,7 +498,7 @@ export class WalrusSealService extends Service {
           paymentCoin,
         ],
       });
-      
+
       // 트랜잭션 실행
       const result = await suiClient.signAndExecuteTransaction({
         signer: keypair,
@@ -380,24 +508,24 @@ export class WalrusSealService extends Service {
           showObjectChanges: true,
         },
       });
-      
+
       // NFT objectId 추출
       const nftObj = result.objectChanges?.find(
-        (change) => 
-          change.type === 'created' && 
+        (change) =>
+          change.type === 'created' &&
           change.objectType.includes('::file_nft::FileNFT')
       );
-      
+
       return {
         success: true,
         nftId: nftObj && 'objectId' in nftObj ? nftObj.objectId : undefined,
-        transactionDigest: result.digest
+        transactionDigest: result.digest,
       };
     } catch (error) {
       logger.error(`Failed to mint File NFT: ${error}`);
       return {
-        success: false, 
-        error: error instanceof Error ? error.message : String(error)
+        success: false,
+        error: error instanceof Error ? error.message : String(error),
       };
     }
   }
@@ -416,20 +544,22 @@ export class WalrusSealService extends Service {
         throw new Error('SUI_PRIVATE_KEY environment variable is not set');
       }
       const keypair = Ed25519Keypair.fromSecretKey(privateKey);
-      
+
       const packageId = process.env.FILE_NFT_PACKAGE_ID;
       const adminCapId = process.env.FILE_NFT_ADMIN_CAP_ID;
-      
+
       if (!packageId || !adminCapId) {
-        throw new Error('FILE_NFT_PACKAGE_ID or FILE_NFT_ADMIN_CAP_ID environment variable is not set');
+        throw new Error(
+          'FILE_NFT_PACKAGE_ID or FILE_NFT_ADMIN_CAP_ID environment variable is not set'
+        );
       }
-      
+
       // 트랜잭션 생성
       const tx = new Transaction();
-      
+
       // SUI 코인 생성
       const [paymentCoin] = tx.splitCoins(tx.gas, [tx.pure.u64(paymentAmount)]);
-      
+
       // file_nft::public_mint 함수 호출
       tx.moveCall({
         target: `${packageId}::file_nft::public_mint`,
@@ -443,7 +573,7 @@ export class WalrusSealService extends Service {
           paymentCoin,
         ],
       });
-      
+
       // 트랜잭션 실행
       const result = await suiClient.signAndExecuteTransaction({
         signer: keypair,
@@ -453,24 +583,24 @@ export class WalrusSealService extends Service {
           showObjectChanges: true,
         },
       });
-      
+
       // NFT objectId 추출
       const nftObj = result.objectChanges?.find(
-        (change) => 
-          change.type === 'created' && 
+        (change) =>
+          change.type === 'created' &&
           change.objectType.includes('::file_nft::FileNFT')
       );
-      
+
       return {
         success: true,
         nftId: nftObj && 'objectId' in nftObj ? nftObj.objectId : undefined,
-        transactionDigest: result.digest
+        transactionDigest: result.digest,
       };
     } catch (error) {
       logger.error(`Failed to mint Memory NFT: ${error}`);
       return {
-        success: false, 
-        error: error instanceof Error ? error.message : String(error)
+        success: false,
+        error: error instanceof Error ? error.message : String(error),
       };
     }
   }
