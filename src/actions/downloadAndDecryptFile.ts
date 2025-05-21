@@ -12,6 +12,10 @@ import {
 } from '@elizaos/core';
 import { WalrusSealService } from 'src/service';
 import mime from 'mime';
+import fs from 'fs';
+import path from 'path';
+import crypto from 'crypto';
+import { DOWNLOAD_DIR } from '../index';
 
 const downloadAndDecryptFileTemplate = `# Task: Download and Decrypt File
 
@@ -49,15 +53,6 @@ Response format should be formatted in a valid JSON block like this:
 Your response should include the valid JSON block and nothing else.
 `;
 
-function isValidMemory(item: any): item is Memory {
-  return (
-    item &&
-    typeof item === 'object' &&
-    typeof item.entityId === 'string' &&
-    typeof item.content === 'object' &&
-    typeof item.roomId === 'string'
-  );
-}
 
 export const downloadAndDecryptFileAction: Action = {
   name: 'DOWNLOAD_AND_DECRYPT_FILE',
@@ -110,25 +105,35 @@ export const downloadAndDecryptFileAction: Action = {
       if (success && data) {
         // create a unique token for the download link using UUID v4
         const downloadToken = crypto.randomUUID();
-
+        
         // get mime type from file extension
-        const contentType = mime.getType(fileName.split('.').pop());
-
-        // save file data in global storage
-        if (!global.downloadTokens) {
-          global.downloadTokens = new Map();
+        const contentType = mime.getType(fileName.split('.').pop()) || 'application/octet-stream';
+        
+        // Ensure download directory exists
+        if (!fs.existsSync(DOWNLOAD_DIR)) {
+          fs.mkdirSync(DOWNLOAD_DIR, { recursive: true });
         }
-        global.downloadTokens.set(downloadToken, data);
-
-        // save metadata for the file
+        
+        // Save file to disk instead of memory
+        const filePath = path.join(DOWNLOAD_DIR, `${downloadToken}_${fileName}`);
+        logger.info(`Saving downloaded file to: ${filePath}`);
+        
+        // Write the decrypted data to disk
+        fs.writeFileSync(filePath, Buffer.from(data));
+        
+        // Only save metadata in memory
         if (!global.downloadMetadata) {
           global.downloadMetadata = new Map();
         }
+        
         global.downloadMetadata.set(downloadToken, {
           filename: fileName,
           contentType: contentType,
+          filePath: filePath,
+          createdAt: Date.now(),
+          expiresAt: Date.now() + 24 * 60 * 60 * 1000, // 24시간 후 만료
         });
-
+        
         // create download link
         const baseUrl = process.env.BASE_URL || 'http://localhost:3000';
         downloadLink = `${baseUrl}/api/download?token=${downloadToken}`;

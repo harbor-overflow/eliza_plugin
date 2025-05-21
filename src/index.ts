@@ -18,9 +18,76 @@ import crypto from 'crypto';
 
 const MAX_CHUNK_SIZE = 10 * 1024 * 1024; // 5MB 청크 사이즈 (멀터 한계보다 작게)
 const UPLOAD_DIR = path.join(process.cwd(), 'data/uploads');
+export const DOWNLOAD_DIR = path.join(process.cwd(), 'data/downloads');
 
-if (!fs.existsSync(UPLOAD_DIR)) {
-  fs.mkdirSync(UPLOAD_DIR, { recursive: true });
+function cleanupUploadDirectory(directory: string) {
+  logger.info(`Cleaning up upload directory: ${directory}`);
+
+  if (fs.existsSync(directory)) {
+    try {
+      // Remove all files and subdirectories
+      fs.readdirSync(directory).forEach((file) => {
+        const currentPath = path.join(directory, file);
+        if (fs.lstatSync(currentPath).isDirectory()) {
+          // Remove directory and all contents
+          fs.rmSync(currentPath, { recursive: true, force: true });
+          logger.info(`Removed directory: ${currentPath}`);
+        } else {
+          // Remove file
+          fs.unlinkSync(currentPath);
+          logger.info(`Removed file: ${currentPath}`);
+        }
+      });
+      logger.info('Upload directory cleaned successfully');
+    } catch (error) {
+      logger.error(`Error cleaning upload directory: ${error}`);
+    }
+  }
+
+  // Ensure the directory exists after cleanup
+  if (!fs.existsSync(directory)) {
+    fs.mkdirSync(directory, { recursive: true });
+    logger.info(`Created upload directory: ${directory}`);
+  }
+}
+
+function cleanupExpiredDownloads() {
+  logger.info('Cleaning up expired download files...');
+
+  try {
+    // Clear expired metadata entries
+    if (global.downloadMetadata) {
+      const now = Date.now();
+      const expiredTokens = [];
+
+      for (const [token, info] of global.downloadMetadata.entries()) {
+        if (info.expiresAt && info.expiresAt < now) {
+          expiredTokens.push(token);
+
+          // Delete the associated file
+          if (info.filePath && fs.existsSync(info.filePath)) {
+            try {
+              fs.unlinkSync(info.filePath);
+              logger.info(`Removed expired file: ${info.filePath}`);
+            } catch (err) {
+              logger.error(`Failed to delete expired file: ${err}`);
+            }
+          }
+        }
+      }
+
+      // Remove expired entries from metadata
+      expiredTokens.forEach((token) => {
+        global.downloadMetadata.delete(token);
+      });
+
+      logger.info(
+        `Cleaned up ${expiredTokens.length} expired download entries`
+      );
+    }
+  } catch (error) {
+    logger.error(`Error in cleanup routine: ${error}`);
+  }
 }
 
 /**
@@ -35,23 +102,39 @@ const configSchema = z.object({
     .optional()
     .transform((val) => {
       if (!val) {
-        logger.warn('Example plugin variable is not provided (this is expected)');
+        logger.warn(
+          'Example plugin variable is not provided (this is expected)'
+        );
       }
       return val;
     }),
-  FILE_NFT_PACKAGE_ID: z.string().min(1, 'FILE_NFT_PACKAGE_ID is not provided').optional(),
-  FILE_NFT_ADMIN_CAP_ID: z.string().min(1, 'FILE_NFT_ADMIN_CAP_ID is not provided').optional(),
+  FILE_NFT_PACKAGE_ID: z
+    .string()
+    .min(1, 'FILE_NFT_PACKAGE_ID is not provided')
+    .optional(),
+  FILE_NFT_ADMIN_CAP_ID: z
+    .string()
+    .min(1, 'FILE_NFT_ADMIN_CAP_ID is not provided')
+    .optional(),
 });
 
 export const harborPlugin: Plugin = {
   name: 'plugin-harbor',
-  description: 'Plugin harbor for upload and download encrypted memories with walrus and seal',
+  description:
+    'Plugin harbor for upload and download encrypted memories with walrus and seal',
   config: {
     EXAMPLE_PLUGIN_VARIABLE: process.env.EXAMPLE_PLUGIN_VARIABLE,
   },
   async init(config: Record<string, string>) {
     logger.info('*** TESTING DEV MODE - PLUGIN MODIFIED AND RELOADED! ***');
     try {
+      // Clean up the upload directory at startup
+      cleanupUploadDirectory(UPLOAD_DIR);
+      cleanupUploadDirectory(DOWNLOAD_DIR);
+
+      // Schedule periodic cleanup
+      setInterval(cleanupExpiredDownloads, 60 * 60 * 1000); // Every hour
+
       const validatedConfig = await configSchema.parseAsync(config);
 
       // Set all environment variables at once
@@ -63,9 +146,11 @@ export const harborPlugin: Plugin = {
       if (!global.fileInfo) {
         global.fileInfo = new Map();
       }
-
       if (!global.chunkInfo) {
         global.chunkInfo = new Map();
+      }
+      if (!global.downloadMetadata) {
+        global.downloadMetadata = new Map();
       }
     } catch (error) {
       if (error instanceof z.ZodError) {
@@ -105,7 +190,9 @@ export const harborPlugin: Plugin = {
             // Check if the hello world action is registered
             // Look for the action in our plugin's actions
             // The actual action name in this plugin is "helloWorld", not "hello"
-            const actionExists = harborPlugin.actions.some((a) => a.name === 'HELLO_WORLD');
+            const actionExists = harborPlugin.actions.some(
+              (a) => a.name === 'HELLO_WORLD'
+            );
             console.log('Action exists:', actionExists);
             if (!actionExists) {
               throw new Error('Hello world action not found in plugin');
@@ -125,7 +212,7 @@ export const harborPlugin: Plugin = {
           const storage = multer.memoryStorage();
           const upload = multer({
             storage: storage,
-            limits: { fileSize: MAX_CHUNK_SIZE + 1},
+            limits: { fileSize: MAX_CHUNK_SIZE + 1 },
           });
 
           // Handle chunk upload
@@ -150,7 +237,9 @@ export const harborPlugin: Plugin = {
             const totalChunks = parseInt(req.body.totalChunks || '1', 10);
             const fileName = req.body.fileName || 'unknown';
             const contentType =
-              req.body.contentType || req.file.mimetype || 'application/octet-stream';
+              req.body.contentType ||
+              req.file.mimetype ||
+              'application/octet-stream';
 
             // Create file directory
             const fileDir = path.join(UPLOAD_DIR, fileId);
@@ -260,7 +349,7 @@ export const harborPlugin: Plugin = {
           writeStream.end();
 
           // Wait for stream to finish
-          await new Promise((resolve) => {
+          await new Promise<void>((resolve) => {
             writeStream.on('finish', resolve);
           });
 
@@ -280,17 +369,6 @@ export const harborPlugin: Plugin = {
             createdAt: Date.now(),
             expiresAt: Date.now() + 24 * 60 * 60 * 1000, // 24시간 후 만료
           });
-
-          // For backward compatibility
-          if (!global.tempFiles) {
-            global.tempFiles = new Map();
-          }
-
-          // Store file in memory for backward compatibility (if smaller than 10MB)
-          if (stats.size <= MAX_CHUNK_SIZE) {
-            const fileBuffer = fs.readFileSync(outputPath);
-            global.tempFiles.set(fileInfo.fileName, fileBuffer);
-          }
 
           return res.status(200).json({
             success: true,
@@ -349,13 +427,6 @@ export const harborPlugin: Plugin = {
             // Save file to disk
             fs.writeFileSync(filePath, fileBuffer);
 
-            // Save file in temporary storage
-            if (!global.tempFiles) {
-              console.log('Creating global tempFiles map');
-              global.tempFiles = new Map();
-            }
-            global.tempFiles.set(req.file.originalname, fileBuffer);
-
             // Save file info
             if (!global.fileInfo) {
               global.fileInfo = new Map();
@@ -402,7 +473,6 @@ export const harborPlugin: Plugin = {
         try {
           // Check if the file exists
           const fileExists = global.fileInfo && global.fileInfo.has(fileId);
-          const inTempFiles = global.tempFiles && global.tempFiles.has(fileId);
 
           if (fileExists) {
             // Get file information
@@ -429,13 +499,6 @@ export const harborPlugin: Plugin = {
             global.fileInfo.delete(fileId);
             global.chunkInfo?.delete(fileId);
 
-            return res.status(200).json({
-              success: true,
-              message: `File with ID ${fileId} deleted successfully`,
-            });
-          } else if (inTempFiles) {
-            // Legacy compatibility - delete from tempFiles
-            global.tempFiles.delete(fileId);
             return res.status(200).json({
               success: true,
               message: `File with ID ${fileId} deleted successfully`,
@@ -469,30 +532,36 @@ export const harborPlugin: Plugin = {
             });
           }
 
-          // check file token
-          if (!global.downloadTokens || !global.downloadTokens.has(token)) {
+          // Check if token metadata exists
+          if (!global.downloadMetadata || !global.downloadMetadata.has(token)) {
             return res.status(404).json({
               success: false,
               error: 'Invalid download token or file expired',
             });
           }
 
-          const fileData = global.downloadTokens.get(token);
-          const fileInfo = global.downloadMetadata?.get(token) || {
-            filename: 'downloaded-file',
-            contentType: 'application/octet-stream',
-          };
+          // Get file metadata
+          const fileInfo = global.downloadMetadata.get(token);
+
+          // Check if file exists on disk
+          if (!fileInfo.filePath || !fs.existsSync(fileInfo.filePath)) {
+            return res.status(404).json({
+              success: false,
+              error: 'File not found on server',
+            });
+          }
+
+          // Get file stats for content-length and other headers
+          const stats = fs.statSync(fileInfo.filePath);
 
           // Support for range requests
           const rangeHeader = req.headers.range;
           if (rangeHeader) {
-            const fileSize = fileData.length;
+            const fileSize = stats.size;
             const parts = rangeHeader.replace(/bytes=/, '').split('-');
             const start = parseInt(parts[0], 10);
             const end = parts[1] ? parseInt(parts[1], 10) : fileSize - 1;
-
             const chunkSize = end - start + 1;
-            const chunk = Buffer.from(fileData).slice(start, end + 1);
 
             res.writeHead(206, {
               'Content-Range': `bytes ${start}-${end}/${fileSize}`,
@@ -502,21 +571,41 @@ export const harborPlugin: Plugin = {
               'Content-Disposition': `attachment; filename="${fileInfo.filename}"`,
             });
 
-            res.end(chunk);
+            // Stream the file range
+            const fileStream = fs.createReadStream(fileInfo.filePath, {
+              start,
+              end,
+            });
+            fileStream.pipe(res);
+
+            // Delete metadata after streaming is complete
+            fileStream.on('close', () => {
+              global.downloadMetadata.delete(token);
+            });
           } else {
-            // set headers for file download
-            res.setHeader('Content-Disposition', `attachment; filename="${fileInfo.filename}"`);
+            // Stream whole file
+            res.setHeader(
+              'Content-Disposition',
+              `attachment; filename="${fileInfo.filename}"`
+            );
             res.setHeader('Content-Type', fileInfo.contentType);
-            res.setHeader('Content-Length', fileData.length);
+            res.setHeader('Content-Length', stats.size);
 
-            // send file data
-            res.send(Buffer.from(fileData));
-          }
+            const fileStream = fs.createReadStream(fileInfo.filePath);
+            fileStream.pipe(res);
 
-          // delete the token after download
-          global.downloadTokens.delete(token);
-          if (global.downloadMetadata) {
-            global.downloadMetadata.delete(token);
+            // Cleanup after file is sent
+            fileStream.on('close', () => {
+              // Remove metadata
+              global.downloadMetadata.delete(token);
+
+              // Optionally delete file after download (uncomment if desired)
+              // try {
+              //   fs.unlinkSync(fileInfo.filePath);
+              // } catch (err) {
+              //   logger.error(`Error removing file after download: ${err}`);
+              // }
+            });
           }
         } catch (error) {
           logger.error(`Error in file download API: ${error}`);

@@ -11,6 +11,7 @@ import {
   parseJSONObjectFromText,
 } from '@elizaos/core';
 import { WalrusSealService } from 'src/service';
+import fs from 'fs';
 
 const encryptAndUploadFileTemplate = `# Task: Encrypt and Upload File
 
@@ -22,31 +23,31 @@ Extract the following fields from the user’s last message:
 - allowlistId: string (required)
 - deletable: boolean or null
 - epochs: number or null
-- fileName: string (required)
+- fileId: string (required)
 
 # Examples
-User: upload file 0x123abc  fileName: myfile.txt
-Assistant: {"fileName":"myfile.txt","allowlistId":"0x123abc","deletable":null,"epochs":null}
+User: upload file 0x123abc  fileId: ba057d8e-9b45-4c42-b2b5-f5177ccc690c
+Assistant: {"fileId":"ba057d8e-9b45-4c42-b2b5-f5177ccc690c","allowlistId":"0x123abc","deletable":null,"epochs":null}
 
-User: upload this file 0x123abc  fileName: myfile.png
-Assistant: {"fileName":"myfile.png","allowlistId":"0x123abc","deletable":null,"epochs":null}
+User: upload this file 0x123abc  fileId: 0x123abc
+Assistant: {"fileId":"0x123abc","allowlistId":"0x123abc","deletable":null,"epochs":null}
 
-User: upload file to 0x123abc with deletable fileName: myfile.png
-Assistant: {"fileName":"myfile.png","allowlistId":"0x123abc",""deletable":true,"epochs":null}
+User: upload file to 0x123abc with deletable fileId: someId
+Assistant: {"fileId":"someId","allowlistId":"0x123abc",""deletable":true,"epochs":null}
 
-User: upload file 0x123abc with not deletable fileName: myPdf.pdf
-Assistant: {"fileName":"myPdf.pdf","allowlistId":"0x123abc",""deletable":false,"epochs":null}
+User: upload file 0x123abc with not deletable fileId: a5ef6dd4-0b42-43b5-a181-0a140585f7a2
+Assistant: {"fileId":"a5ef6dd4-0b42-43b5-a181-0a140585f7a2","allowlistId":"0x123abc",""deletable":false,"epochs":null}
 
-User: upload this file 0x123abc with 5 epochs fileName: myfile.png
-Assistant: {"fileName":"myfile.png","allowlistId":"0x123abc","deletable":null,"epochs":5}
+User: upload this file 0x123abc with 5 epochs fileId: a5ef6dd4-0b42-43b5-a181-0a140585f7a2
+Assistant: {"fileId":"a5ef6dd4-0b42-43b5-a181-0a140585f7a2","allowlistId":"0x123abc","deletable":null,"epochs":5}
 
-User: upload file {"0x123abc", true, 5} fileName: myfile.png
-Assistant: {"fileName":"myfile.png","allowlistId":"0x123abc","deletable":true,"epochs":5}
+User: upload file {"0x123abc", true, 5} fileId: a5ef6dd4-0b42-43b5-a181-0a140585f7a2
+Assistant: {"fileId":"a5ef6dd4-0b42-43b5-a181-0a140585f7a2","allowlistId":"0x123abc","deletable":true,"epochs":5}
 
 Response format should be formatted in a valid JSON block like this:
 \`\`\`json
 {
-  "fileName": string,
+  "fileId": string,
   "allowlistId": string,
   "deletable": boolean | null,
   "epochs": number | null
@@ -58,7 +59,7 @@ Your response should include the valid JSON block and nothing else.
 
 export const encryptAndUploadFileAction: Action = {
   name: 'ENCRYPT_AND_UPLOAD_FILE',
-  similes: ['UPLOAD_FILE',],
+  similes: ['UPLOAD_FILE'],
   description: 'Get file and encrypt with seal and upload them to walrus',
 
   validate: async (
@@ -97,10 +98,10 @@ export const encryptAndUploadFileAction: Action = {
       };
       const deletable = getNullableValue(responseContentObj.deletable) ?? true;
       const epochs = getNullableValue(responseContentObj.epochs) ?? 3;
-      const fileName = responseContentObj.fileName;
+      let fileId = responseContentObj.fileId;
 
-      // get file from temporary storage
-      if (!fileName || !global.tempFiles || !global.tempFiles.has(fileName)) {
+      // get file from disk storage
+      if (!fileId || !global.fileInfo) {
         const responseContent: Content = {
           text: `No uploaded file found. Please upload a file first.`,
           actions: ['ENCRYPT_AND_UPLOAD_FILE'],
@@ -109,7 +110,20 @@ export const encryptAndUploadFileAction: Action = {
         return responseContent;
       }
 
-      const fileData = global.tempFiles.get(fileName);
+      // First try direct fileId lookup
+      const fileInfo = global.fileInfo.get(fileId);
+
+      if (!fileInfo || !fs.existsSync(fileInfo.filePath)) {
+        const responseContent: Content = {
+          text: `File not found or has expired. Please upload a file first.`,
+          actions: ['ENCRYPT_AND_UPLOAD_FILE'],
+        };
+        await callback(responseContent);
+        return responseContent;
+      }
+
+      // Read file data from disk
+      const fileData = fs.readFileSync(fileInfo.filePath);
 
       const memoryWalrusSealService = new WalrusSealService(runtime);
       const { success, blobId, error } =
@@ -121,9 +135,12 @@ export const encryptAndUploadFileAction: Action = {
         );
       logger.info(`upload file success: ${success}`);
 
-      // delete the file from the temporary storage if upload was successful
+      // delete the file from storage if upload was successful
       if (success) {
-        global.tempFiles.delete(fileName);
+        if (fs.existsSync(fileInfo.filePath)) {
+          fs.unlinkSync(fileInfo.filePath);
+        }
+        global.fileInfo.delete(fileId);
       }
 
       const responseContent: Content = {
@@ -186,6 +203,6 @@ export const encryptAndUploadFileAction: Action = {
           actions: ['ENCRYPT_AND_UPLOAD_FILE'],
         },
       },
-    ]
+    ],
   ],
 };
