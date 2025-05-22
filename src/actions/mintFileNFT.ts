@@ -23,18 +23,15 @@ Extract the following fields from the user's message and create a JSON object:
 - blobId: string (required) - Blob ID of the uploaded file
 - fileName: string (required) - Name of the file
 - fileSize: number or null - Size of the file in bytes
-- endEpoch: number or null - Expiration epoch (default will be current epoch + 10)
+- collectionId: string (required) - Collection ID to mint NFT in
 - paymentAmount: number or null - Amount of SUI to pay (default will be the mint price)
 
 # Examples
-User: mint nft for blob abc123 fileName: myfile.txt
-Assistant: {"blobId":"abc123","fileName":"myfile.txt","fileSize":1024,"endEpoch":1000,"paymentAmount":100000000}
+User: mint nft for blob abc123 fileName: myfile.txt collection: 0x123
+Assistant: {"blobId":"abc123","fileName":"myfile.txt","fileSize":1024,"collectionId":"0x123","paymentAmount":100000000}
 
-User: create nft for blobId abc123 fileName myfile.png fileSize 12345 endEpoch 1000
-Assistant: {"blobId":"abc123","fileName":"myfile.png","fileSize":12345,"endEpoch":1000,"paymentAmount":100000000}
-
-User: mint nft from blob 111aaa with fileName image.png payment 100000000
-Assistant: {"blobId":"111aaa","fileName":"image.png","fileSize":2048,"endEpoch":1000,"paymentAmount":100000000}
+User: create nft in collection 0x456 for blobId abc123 fileName myfile.png fileSize 12345
+Assistant: {"blobId":"abc123","fileName":"myfile.png","fileSize":12345,"collectionId":"0x456","paymentAmount":100000000}
 
 Response format should be formatted in a valid JSON block like this:
 \`\`\`json
@@ -42,7 +39,7 @@ Response format should be formatted in a valid JSON block like this:
   "blobId": string,
   "fileName": string,
   "fileSize": number | null,
-  "endEpoch": number | null,
+  "collectionId": string,
   "paymentAmount": number | null
 }
 \`\`\`
@@ -89,10 +86,10 @@ export const mintFileNFTAction: Action = {
       const memoryWalrusSealService = new WalrusSealService(runtime);
 
       const { success, nftId, transactionDigest, error } = await memoryWalrusSealService.mintFileNFTTask(
+        responseContentObj.collectionId,
         responseContentObj.blobId,
         responseContentObj.fileName,
         responseContentObj.fileSize || 0,
-        responseContentObj.endEpoch || 0,
         responseContentObj.paymentAmount || 0
       );
 
@@ -116,7 +113,7 @@ export const mintFileNFTAction: Action = {
       {
         name: '{{name1}}',
         content: {
-          text: 'mint nft for blob abc123 fileName: myfile.txt fileSize 1024 endEpoch 1000 payment 100000000',
+          text: 'mint nft for blob abc123 fileName: myfile.txt collection: 0x123',
         },
       },
       {
@@ -131,7 +128,7 @@ export const mintFileNFTAction: Action = {
       {
         name: '{{name1}}',
         content: {
-          text: 'create nft for blobId def456 fileName image.png fileSize 2048 endEpoch 1000 payment 100000000',
+          text: 'create nft in collection 0x456 for blobId abc123 fileName image.png fileSize 2048',
         },
       },
       {

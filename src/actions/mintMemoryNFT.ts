@@ -18,24 +18,19 @@ const mintMemoryNFTTemplate = `# Task: Mint Memory NFT
 {{recentMessages}}
 
 # Instructions:
-Extract the following fields from the user's last message:
+Extract the following fields from the user's message:
 - blobId: string (required) - Blob ID of the encrypted memory
 - memoryName: string (required) - Name to identify the memory
 - memorySize: number or null - Size of the memory in bytes
-- endEpoch: number or null - Expiration epoch (default will be current epoch + 10)
+- collectionId: string (required) - Collection ID to mint NFT in
+- paymentAmount: number or null - Amount of SUI to pay (default will be the mint price)
 
 # Examples
-User: mint memory nft for blob abc123 name: my_memory
-Assistant: {"blobId":"abc123","memoryName":"my_memory","memorySize":1024,"endEpoch":1000,"paymentAmount":100000000}
+User: mint memory nft for blob abc123 name: my_memory collection: 0x123
+Assistant: {"blobId":"abc123","memoryName":"my_memory","memorySize":1024,"collectionId":"0x123","paymentAmount":100000000}
 
-User: create memory nft for blobId abc123 name secret_data size 1024 endEpoch 1000
-Assistant: {"blobId":"abc123","memoryName":"secret_data","memorySize":1024,"endEpoch":1000,"paymentAmount":100000000}
-
-User: mint nft from memory blob 111aaa with name sensitive_info payment 100000000
-Assistant: {"blobId":"111aaa","memoryName":"sensitive_info","memorySize":2048,"endEpoch":1000,"paymentAmount":100000000}
-
-User: create memory nft {blobId: "999fff", memoryName: "important_message", memorySize: 512, endEpoch: 2000}
-Assistant: {"blobId":"999fff","memoryName":"important_message","memorySize":512,"endEpoch":2000,"paymentAmount":100000000}
+User: create memory nft in collection 0x456 for blobId abc123 name secret_data size 1024
+Assistant: {"blobId":"abc123","memoryName":"secret_data","memorySize":1024,"collectionId":"0x456","paymentAmount":100000000}
 
 Response format should be formatted in a valid JSON block like this:
 \`\`\`json
@@ -43,12 +38,12 @@ Response format should be formatted in a valid JSON block like this:
   "blobId": string,
   "memoryName": string,
   "memorySize": number | null,
-  "endEpoch": number | null,
+  "collectionId": string,
   "paymentAmount": number | null
 }
 \`\`\`
 
-Your response should include the valid JSON block and nothing else.
+Your response should include ONLY the valid JSON block and nothing else.
 `;
 
 export const mintMemoryNFTAction: Action = {
@@ -90,10 +85,10 @@ export const mintMemoryNFTAction: Action = {
       const memoryWalrusSealService = new WalrusSealService(runtime);
 
       const { success, nftId, transactionDigest, error } = await memoryWalrusSealService.mintMemoryNFTTask(
+        responseContentObj.collectionId,
         responseContentObj.blobId,
         responseContentObj.memoryName,
         responseContentObj.memorySize || 0,
-        responseContentObj.endEpoch || 0,
         responseContentObj.paymentAmount || 0
       );
 
@@ -117,7 +112,7 @@ export const mintMemoryNFTAction: Action = {
       {
         name: '{{name1}}',
         content: {
-          text: 'mint memory nft for blob abc123 name: my_memory size 1024 endEpoch 1000 payment 100000000',
+          text: 'mint memory nft for blob abc123 name: my_memory collection: 0x123',
         },
       },
       {
@@ -132,7 +127,7 @@ export const mintMemoryNFTAction: Action = {
       {
         name: '{{name1}}',
         content: {
-          text: 'create memory nft for blobId def456 name secret_data size 2048 endEpoch 1000 payment 100000000',
+          text: 'create memory nft in collection 0x456 for blobId abc123 name secret_data size 2048',
         },
       },
       {

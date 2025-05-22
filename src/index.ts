@@ -12,9 +12,11 @@ import multer from 'multer';
 import { downloadAndDecryptFileAction } from './actions/downloadAndDecryptFile';
 import { mintFileNFTAction } from './actions/mintFileNFT';
 import { mintMemoryNFTAction } from './actions/mintMemoryNFT';
+import { createCollectionAction } from './actions/createCollection';
 import path from 'path';
 import fs from 'fs';
 import crypto from 'crypto';
+import { listNFTsAction } from './actions/listNFTs';
 
 const MAX_CHUNK_SIZE = 10 * 1024 * 1024; // 5MB 청크 사이즈 (멀터 한계보다 작게)
 const UPLOAD_DIR = path.join(process.cwd(), 'data/uploads');
@@ -124,6 +126,8 @@ export const harborPlugin: Plugin = {
     'Plugin harbor for upload and download encrypted memories with walrus and seal',
   config: {
     EXAMPLE_PLUGIN_VARIABLE: process.env.EXAMPLE_PLUGIN_VARIABLE,
+    FILE_NFT_PACKAGE_ID: process.env.FILE_NFT_PACKAGE_ID,
+    FILE_NFT_ADMIN_CAP_ID: process.env.FILE_NFT_ADMIN_CAP_ID,
   },
   async init(config: Record<string, string>) {
     logger.info('*** TESTING DEV MODE - PLUGIN MODIFIED AND RELOADED! ***');
@@ -629,6 +633,8 @@ export const harborPlugin: Plugin = {
     createServiceAction,
     mintFileNFTAction,
     mintMemoryNFTAction,
+    createCollectionAction,
+    listNFTsAction,
   ],
   providers: [],
 };

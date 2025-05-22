@@ -7,6 +7,7 @@ module file_nft::file_nft {
     use sui::tx_context::{TxContext, sender};
     use sui::coin::{Coin, value};
     use sui::sui::SUI;
+    use std::vector;
     
 
     /// 0 = 파일, 1 = 메모리
@@ -14,14 +15,16 @@ module file_nft::file_nft {
         id: UID,
         blob_id: String,
         file_name: String,
-        end_epoch: u64,
         file_size: u64,
         owner: address,
         resource_type: u8,
+        collection_id: ID,  // NFT가 속한 컬렉션의 ID
     }
 
-    public struct AdminCap has key, store {
+    /// NFT 컬렉션 정보
+    public struct Collection has key, store {
         id: UID,
+        name: String,
         max_supply: u64,
         minted: u64,
         mint_price: u64,
@@ -30,79 +33,93 @@ module file_nft::file_nft {
 
     public struct NFTMinted has copy, drop {
         nft_id: ID,
+        collection_id: ID,
         blob_id: String,
         file_name: String,
-        end_epoch: u64,
         owner: address,
         file_size: u64,
         resource_type: u8,
     }
 
-    /// 어드민 초기화
-    public entry fun init_admin(ctx: &mut TxContext) {
-        let admin_cap = AdminCap {
-            id: new(ctx),
-            max_supply: 10000,
-            minted: 0,
-            mint_price: 100_000_000,
-            owner: sender(ctx),
-        };
-        transfer::public_transfer(admin_cap, sender(ctx));
+    // Seal 프로토콜 이벤트
+    public struct SealApproved has copy, drop {
+        collection_id: ID,
+        approved_id: vector<u8>,
+        approved_by: address
     }
 
-    /// 어드민만 정책 변경 가능
+    /// 컬렉션 생성
+    public entry fun    _collection(
+        name: vector<u8>,
+        max_supply: u64,
+        mint_price: u64,
+        ctx: &mut TxContext
+    ) {
+        let collection = Collection {
+            id: new(ctx),
+            name: utf8(name),
+            max_supply,
+            minted: 0, 
+            mint_price,
+            owner: sender(ctx),
+        };
+        transfer::public_transfer(collection, sender(ctx));
+    }
+
+    /// 컬렉션 정책 변경 (소유자만 가능)
     public entry fun set_mint_price(
-        admin_cap: &mut AdminCap,
+        collection: &mut Collection,
         new_price: u64,
         ctx: &mut TxContext
     ) {
-        assert!(sender(ctx) == admin_cap.owner, 1);
-        admin_cap.mint_price = new_price;
+        assert!(sender(ctx) == collection.owner, 1);
+        collection.mint_price = new_price;
     }
 
     public entry fun set_max_supply(
-        admin_cap: &mut AdminCap,
+        collection: &mut Collection,
         new_max_supply: u64,
         ctx: &mut TxContext
     ) {
-        assert!(sender(ctx) == admin_cap.owner, 1);
-        assert!(new_max_supply >= admin_cap.minted, 2);
-        admin_cap.max_supply = new_max_supply;
+        assert!(sender(ctx) == collection.owner, 1);
+        assert!(new_max_supply >= collection.minted, 2);
+        collection.max_supply = new_max_supply;
     }
 
-    /// 누구나 직접 민팅 가능, Coin<SUI> 결제 포함
-    public entry fun public_mint(
-        admin_cap: &mut AdminCap,
+    /// NFT 민팅
+    public entry fun mint_nft(
+        collection: &mut Collection,
         blob_id: vector<u8>,
         file_name: vector<u8>,
-        end_epoch: u64,
         file_size: u64,
         resource_type: u8,
         payment: Coin<SUI>,
         ctx: &mut TxContext
     ) {
-        assert!(admin_cap.minted < admin_cap.max_supply, 0);
-        assert!(value(&payment) >= admin_cap.mint_price, 3);
+        // 컬렉션 제한 체크
+        assert!(collection.minted < collection.max_supply, 0);
+        assert!(value(&payment) >= collection.mint_price, 3);
 
-        // 수수료를 어드민에게 송금
-        transfer::public_transfer(payment, admin_cap.owner);
+        // 수수료를 컬렉션 소유자에게 송금
+        transfer::public_transfer(payment, collection.owner);
 
         let recipient = sender(ctx);
         let nft = FileNFT {
             id: new(ctx),
             blob_id: utf8(blob_id),
             file_name: utf8(file_name),
-            end_epoch,
             file_size,
             owner: recipient,
             resource_type,
+            collection_id: id(collection),
         };
-        admin_cap.minted = admin_cap.minted + 1;
+        collection.minted = collection.minted + 1;
+
         event::emit(NFTMinted {
             nft_id: id(&nft),
+            collection_id: id(collection),
             blob_id: nft.blob_id,
             file_name: nft.file_name,
-            end_epoch,
             owner: recipient,
             file_size,
             resource_type,
@@ -110,28 +127,36 @@ module file_nft::file_nft {
         transfer::public_transfer(nft, recipient);
     }
 
-    /// 접근 검증: 소유자 & 만료 체크
-    public fun verify_access(nft: &FileNFT, current_epoch: u64, ctx: &TxContext): bool {
-        sender(ctx) == nft.owner && current_epoch <= nft.end_epoch
+    /// Seal 프로토콜 승인 함수
+    public fun seal_approve(id: vector<u8>, nft: &FileNFT, ctx: &TxContext): bool {
+        // NFT 소유자만 승인 가능
+        let is_approved = sender(ctx) == nft.owner;
+        
+        if (is_approved) {
+            event::emit(SealApproved {
+                collection_id: nft.collection_id,
+                approved_id: id,
+                approved_by: sender(ctx)
+            });
+        };
+        
+        is_approved
+    }
+
+    /// NFT 전송
+    public entry fun transfer_nft(
+        nft: FileNFT,
+        recipient: address,
+        _ctx: &mut TxContext
+    ) {
+        transfer::public_transfer(nft, recipient);
     }
 
     /// Getter 함수들
     public fun get_blob_id(nft: &FileNFT): &String { &nft.blob_id }
     public fun get_file_name(nft: &FileNFT): &String { &nft.file_name }
-    public fun get_end_epoch(nft: &FileNFT): u64 { nft.end_epoch }
     public fun get_file_size(nft: &FileNFT): u64 { nft.file_size }
     public fun get_owner(nft: &FileNFT): address { nft.owner }
     public fun get_resource_type(nft: &FileNFT): u8 { nft.resource_type }
-
-    /// AdminCap 소유권 이전
-    public entry fun transfer_admin_cap(
-        admin_cap: &mut AdminCap,
-        new_owner: address,
-        ctx: &mut TxContext
-    ) {
-        // 현재 소유자만 이전 가능
-        assert!(sender(ctx) == admin_cap.owner, 1);
-        // 새로운 소유자로 변경
-        admin_cap.owner = new_owner;
-    }
+    public fun get_collection_id(nft: &FileNFT): ID { nft.collection_id }
 }
