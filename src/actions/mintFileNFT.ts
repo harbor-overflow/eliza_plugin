@@ -20,27 +20,19 @@ const mintFileNFTTemplate = `# Task: Mint File NFT
 
 # Instructions:
 Extract the following fields from the user's message and create a JSON object:
-- blobId: string (required) - Blob ID of the uploaded file
-- fileName: string (required) - Name of the file
-- fileSize: number or null - Size of the file in bytes
 - collectionId: string (required) - Collection ID to mint NFT in
-- paymentAmount: number or null - Amount of SUI to pay (default will be the mint price)
 
 # Examples
-User: mint nft for blob abc123 fileName: myfile.txt collection: 0x123
-Assistant: {"blobId":"abc123","fileName":"myfile.txt","fileSize":1024,"collectionId":"0x123","paymentAmount":100000000}
+User: mint nft collection: 0x123
+Assistant: {"collectionId":"0x123"}
 
-User: create nft in collection 0x456 for blobId abc123 fileName myfile.png fileSize 12345
-Assistant: {"blobId":"abc123","fileName":"myfile.png","fileSize":12345,"collectionId":"0x456","paymentAmount":100000000}
+User: create nft in collection 0x456
+Assistant: {"collectionId":"0x456"}
 
 Response format should be formatted in a valid JSON block like this:
 \`\`\`json
 {
-  "blobId": string,
-  "fileName": string,
-  "fileSize": number | null,
   "collectionId": string,
-  "paymentAmount": number | null
 }
 \`\`\`
 
@@ -49,8 +41,8 @@ Your response should include ONLY the valid JSON block and nothing else.
 
 export const mintFileNFTAction: Action = {
   name: 'MINT_FILE_NFT',
-  similes: ['CREATE_NFT', 'MINT_NFT'],
-  description: 'Create an NFT for a file stored in Walrus',
+  similes: ['MINT_NFT'],
+  description: 'Mint an FileNFT',
 
   validate: async (
     _runtime: IAgentRuntime,
@@ -87,10 +79,6 @@ export const mintFileNFTAction: Action = {
 
       const { success, nftId, transactionDigest, error } = await memoryWalrusSealService.mintFileNFTTask(
         responseContentObj.collectionId,
-        responseContentObj.blobId,
-        responseContentObj.fileName,
-        responseContentObj.fileSize || 0,
-        responseContentObj.paymentAmount || 0
       );
 
       const responseContent: Content = {
@@ -113,7 +101,7 @@ export const mintFileNFTAction: Action = {
       {
         name: '{{name1}}',
         content: {
-          text: 'mint nft for blob abc123 fileName: myfile.txt collection: 0x123',
+          text: 'mint nft collection: 0x123',
         },
       },
       {
@@ -128,7 +116,7 @@ export const mintFileNFTAction: Action = {
       {
         name: '{{name1}}',
         content: {
-          text: 'create nft in collection 0x456 for blobId abc123 fileName image.png fileSize 2048',
+          text: 'create nft in collection 0x456',
         },
       },
       {

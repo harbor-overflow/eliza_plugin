@@ -455,13 +455,7 @@ export class WalrusSealService extends Service {
     }
   }
 
-  async mintFileNFTTask(
-    collectionId: string,
-    blobId: string,
-    fileName: string,
-    fileSize: number,
-    paymentAmount: number
-  ) {
+  async mintFileNFTTask(collectionId: string) {
     try {
       const suiClient = new SuiClient({ url: getFullnodeUrl('testnet') });
       const privateKey = process.env.SUI_PRIVATE_KEY;
@@ -478,20 +472,17 @@ export class WalrusSealService extends Service {
       // 트랜잭션 생성
       const tx = new Transaction();
 
+      // 민팅 비용 가져오기
+      // const mintPrice = await ...
+
       // SUI 코인 생성
-      const [paymentCoin] = tx.splitCoins(tx.gas, [tx.pure.u64(paymentAmount)]);
+      // const [paymentCoin] = tx.splitCoins(tx.gas, [tx.pure.u64(mintPrice)]);
+      const [paymentCoin] = tx.splitCoins(tx.gas, [tx.pure.u64(0)]);
 
       // file_nft::mint_nft 함수 호출
       tx.moveCall({
         target: `${packageId}::file_nft::mint_nft`,
-        arguments: [
-          tx.object(collectionId),
-          tx.pure.string(blobId),
-          tx.pure.string(fileName),
-          tx.pure.u64(fileSize),
-          tx.pure.u8(0), // resource_type: 0 = 파일
-          paymentCoin,
-        ],
+        arguments: [tx.object(collectionId), paymentCoin],
       });
 
       // 트랜잭션 실행
@@ -645,7 +636,10 @@ export class WalrusSealService extends Service {
 
       return {
         success: true,
-        collectionId: collectionObj && 'objectId' in collectionObj ? collectionObj.objectId : undefined,
+        collectionId:
+          collectionObj && 'objectId' in collectionObj
+            ? collectionObj.objectId
+            : undefined,
         transactionDigest: result.digest,
       };
     } catch (error) {
@@ -673,18 +667,18 @@ export class WalrusSealService extends Service {
         filter: {
           MatchAll: [
             {
-              StructType: `${process.env.FILE_NFT_PACKAGE_ID}::file_nft::FileNFT`
-            }
-          ]
+              StructType: `${process.env.FILE_NFT_PACKAGE_ID}::file_nft::FileNFT`,
+            },
+          ],
         },
         options: {
           showContent: true,
-          showType: true
-        }
+          showType: true,
+        },
       });
 
       // NFT 정보 파싱
-      const nftList = nfts.data.map(nft => {
+      const nftList = nfts.data.map((nft) => {
         const content = nft.data?.content as any;
         return {
           id: nft.data?.objectId,
@@ -692,20 +686,20 @@ export class WalrusSealService extends Service {
           file_name: content?.fields?.file_name,
           file_size: content?.fields?.file_size,
           resource_type: content?.fields?.resource_type,
-          collection_id: content?.fields?.collection_id
+          collection_id: content?.fields?.collection_id,
         };
       });
 
       return {
         success: true,
-        nfts: nftList
+        nfts: nftList,
       };
     } catch (error) {
       logger.error(`Failed to list NFTs: ${error}`);
       return {
         success: false,
         error: error instanceof Error ? error.message : String(error),
-        nfts: []
+        nfts: [],
       };
     }
   }
