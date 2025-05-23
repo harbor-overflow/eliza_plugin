@@ -20,6 +20,7 @@ import { SuiService } from './SuiService';
 import { SealService } from './SealService';
 import { WalrusService } from './WalrusService';
 import { uploadMemoryWithNFTAction } from './actions/uploadMemoryWithNFT';
+import { downloadWithNFTAction } from './actions/downloadWithNFT';
 
 const MAX_CHUNK_SIZE = 10 * 1024 * 1024;
 const UPLOAD_DIR = path.join(process.cwd(), 'data/uploads');
@@ -628,6 +629,7 @@ export const harborPlugin: Plugin = {
     listMyNFTsAction,
     uploadFileWithNFTAction,
     uploadMemoryWithNFTAction,
+    downloadWithNFTAction,
   ],
   providers: [],
 };

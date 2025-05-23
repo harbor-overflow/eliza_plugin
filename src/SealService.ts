@@ -118,7 +118,7 @@ export class SealService extends Service {
       });
 
       // Extract encryption ID
-      const id = EncryptedObject.parse(new Uint8Array(encryptedData)).id;
+      const id = EncryptedObject.parse(encryptedData).id;
 
       logger.info('Creating decryption transaction...');
       // build seal_approve transaction
@@ -184,14 +184,14 @@ export class SealService extends Service {
       });
 
       // Extract encryption ID
-      const id = EncryptedObject.parse(new Uint8Array(encryptedData)).id;
+      const id = EncryptedObject.parse(encryptedData).id;
 
       logger.info('Creating decryption transaction...');
       // build seal_approve transaction
       const tx = new Transaction();
       tx.moveCall({
         target: `${FILE_NFT_PACKAGE_ID}::file_nft::seal_approve`,
-        arguments: [tx.pure.vector('u8', fromHex(blobId)), tx.object(nftId)],
+        arguments: [tx.pure.vector('u8', fromHex(id)), tx.object(nftId)],
       });
       const txBytes = await tx.build({
         client: suiClient,
