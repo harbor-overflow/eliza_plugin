@@ -10,13 +10,14 @@ import { createServiceAction } from './actions/createService';
 import { encryptAndUploadFileAction } from './actions/encryptAndUploadFile';
 import multer from 'multer';
 import { downloadAndDecryptFileAction } from './actions/downloadAndDecryptFile';
-import { mintFileNFTAction } from './actions/mintFileNFT';
-import { mintMemoryNFTAction } from './actions/mintMemoryNFT';
+import { mintAccessNFTAction } from './actions/mintAccessNFT';
 import { createCollectionAction } from './actions/createCollection';
+import { listCollectionsAction } from './actions/listCollections';
+import { listMyNFTsAction } from './actions/listMyNFTs';
+
 import path from 'path';
 import fs from 'fs';
-import crypto from 'crypto';
-import { listNFTsAction } from './actions/listNFTs';
+
 
 const MAX_CHUNK_SIZE = 10 * 1024 * 1024; // 5MB 청크 사이즈 (멀터 한계보다 작게)
 const UPLOAD_DIR = path.join(process.cwd(), 'data/uploads');
@@ -631,10 +632,10 @@ export const harborPlugin: Plugin = {
     downloadAndDecryptMemoryAction,
     downloadAndDecryptFileAction,
     createServiceAction,
-    mintFileNFTAction,
-    mintMemoryNFTAction,
+    mintAccessNFTAction,
     createCollectionAction,
-    listNFTsAction,
+    listCollectionsAction,
+    listMyNFTsAction,
   ],
   providers: [],
 };
