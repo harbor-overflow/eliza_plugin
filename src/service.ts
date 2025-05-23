@@ -14,7 +14,7 @@ import { getFullnodeUrl, SuiClient } from '@mysten/sui/client';
 import { Ed25519Keypair } from '@mysten/sui/keypairs/ed25519';
 import { fromHex } from '@mysten/sui/utils';
 import { WalrusClient } from '@mysten/walrus';
-import { TESTNET_ALLOWLIST_PACKAGE_ID } from './constants';
+import { FILE_NFT_PACKAGE_ID, TESTNET_ALLOWLIST_PACKAGE_ID } from './constants';
 import { Transaction } from '@mysten/sui/transactions';
 import { SuiObjectCreateChange } from './types';
 
@@ -149,7 +149,7 @@ export class WalrusSealService extends Service {
     }
   }
 
-  async createEncryptTask(
+  async createAllowlistEncryptTask(
     dataToEncrypt: Uint8Array<ArrayBufferLike>,
     allowlistId: string
   ) {
@@ -172,6 +172,38 @@ export class WalrusSealService extends Service {
         threshold: 2,
         packageId: TESTNET_ALLOWLIST_PACKAGE_ID,
         id: allowlistId,
+        data: dataToEncrypt,
+      });
+      return encryptedBytes;
+    } catch (error) {
+      logger.error(`Failed to encrypt data: ${error}`);
+      return error;
+    }
+  }
+
+  async createFileNFTEncryptTask(
+    dataToEncrypt: Uint8Array<ArrayBufferLike>,
+    collectionId: string
+  ) {
+    try {
+      // suiClient, sealClient setup
+      const suiClient = new SuiClient({ url: getFullnodeUrl('testnet') });
+      const client = new SealClient({
+        suiClient,
+        serverObjectIds: getAllowlistedKeyServers('testnet').map((id) => [
+          id,
+          1,
+        ]),
+        verifyKeyServers: false,
+      });
+
+      logger.info('Encrypting data with Seal...');
+
+      // encrypt the data with seal
+      const { encryptedObject: encryptedBytes } = await client.encrypt({
+        threshold: 2,
+        packageId: FILE_NFT_PACKAGE_ID,
+        id: collectionId,
         data: dataToEncrypt,
       });
       return encryptedBytes;
@@ -206,6 +238,7 @@ export class WalrusSealService extends Service {
       return {
         success: true,
         blobId: storageInfo.blobId,
+        endEpoch: storageInfo.blobObject.storage.end_epoch,
       };
     } catch (error) {
       logger.error(`Failed to upload data: ${error}`);
@@ -226,7 +259,7 @@ export class WalrusSealService extends Service {
       logger.info('Starting encrypt and upload process...');
 
       // 1. encrypt the data
-      const encryptedBytes = await this.createEncryptTask(
+      const encryptedBytes = await this.createAllowlistEncryptTask(
         dataToEncrypt,
         allowlistId
       );
@@ -455,7 +488,14 @@ export class WalrusSealService extends Service {
     }
   }
 
-  async mintFileNFTTask(collectionId: string) {
+  async updateCollectionMetadataTask(
+    collectionId: string,
+    blobId: string,
+    fileName: string,
+    fileSize: number,
+    resourceType: number,
+    endEpoch: number
+  ) {
     try {
       const suiClient = new SuiClient({ url: getFullnodeUrl('testnet') });
       const privateKey = process.env.SUI_PRIVATE_KEY;
@@ -464,10 +504,62 @@ export class WalrusSealService extends Service {
       }
       const keypair = Ed25519Keypair.fromSecretKey(privateKey);
 
-      const packageId = process.env.FILE_NFT_PACKAGE_ID;
-      if (!packageId) {
-        throw new Error('FILE_NFT_PACKAGE_ID environment variable is not set');
+      // 트랜잭션 생성
+      const tx = new Transaction();
+
+      // update_collection_metadata 함수 호출
+      tx.moveCall({
+        target: `${FILE_NFT_PACKAGE_ID}::file_nft::update_collection_metadata`,
+        arguments: [
+          tx.object(collectionId),
+          tx.pure.string(blobId),
+          tx.pure.string(fileName),
+          tx.pure.u64(fileSize),
+          tx.pure.u8(resourceType),
+          tx.pure.u64(endEpoch),
+        ],
+      });
+
+      // 트랜잭션 실행
+      const result = await suiClient.signAndExecuteTransaction({
+        signer: keypair,
+        transaction: tx,
+        options: {
+          showEffects: true,
+          showObjectChanges: true,
+        },
+      });
+
+      // 실행 결과 확인
+      const status = result.effects?.status.status;
+      const success = status === 'success';
+
+      if (!success) {
+        throw new Error(`Transaction failed with status: ${status}`);
       }
+
+      return {
+        success: true,
+        transactionDigest: result.digest,
+        effects: result.effects,
+      };
+    } catch (error) {
+      logger.error(`Failed to update collection metadata: ${error}`);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : String(error),
+      };
+    }
+  }
+
+  async mintFileNFTTask(collectionId: string) {
+    try {
+      const suiClient = new SuiClient({ url: getFullnodeUrl('testnet') });
+      const privateKey = process.env.SUI_PRIVATE_KEY;
+      if (!privateKey) {
+        throw new Error('SUI_PRIVATE_KEY environment variable is not set');
+      }
+      const keypair = Ed25519Keypair.fromSecretKey(privateKey);
 
       // 트랜잭션 생성
       const tx = new Transaction();
@@ -481,7 +573,7 @@ export class WalrusSealService extends Service {
 
       // file_nft::mint_nft 함수 호출
       tx.moveCall({
-        target: `${packageId}::file_nft::mint_nft`,
+        target: `${FILE_NFT_PACKAGE_ID}::file_nft::mint_nft`,
         arguments: [tx.object(collectionId), paymentCoin],
       });
 
@@ -499,7 +591,7 @@ export class WalrusSealService extends Service {
       const nftObj = result.objectChanges?.find(
         (change) =>
           change.type === 'created' &&
-          change.objectType === `${packageId}::file_nft::FileNFT`
+          change.objectType === `${FILE_NFT_PACKAGE_ID}::file_nft::FileNFT`
       );
 
       return {
@@ -531,11 +623,6 @@ export class WalrusSealService extends Service {
       }
       const keypair = Ed25519Keypair.fromSecretKey(privateKey);
 
-      const packageId = process.env.FILE_NFT_PACKAGE_ID;
-      if (!packageId) {
-        throw new Error('FILE_NFT_PACKAGE_ID environment variable is not set');
-      }
-
       // 트랜잭션 생성
       const tx = new Transaction();
 
@@ -544,7 +631,7 @@ export class WalrusSealService extends Service {
 
       // file_nft::mint_nft 함수 호출
       tx.moveCall({
-        target: `${packageId}::file_nft::mint_nft`,
+        target: `${FILE_NFT_PACKAGE_ID}::file_nft::mint_nft`,
         arguments: [
           tx.object(collectionId),
           tx.pure.string(blobId),
@@ -569,7 +656,7 @@ export class WalrusSealService extends Service {
       const nftObj = result.objectChanges?.find(
         (change) =>
           change.type === 'created' &&
-          change.objectType === `${packageId}::file_nft::FileNFT`
+          change.objectType === `${FILE_NFT_PACKAGE_ID}::file_nft::FileNFT`
       );
 
       return {
@@ -599,17 +686,12 @@ export class WalrusSealService extends Service {
       }
       const keypair = Ed25519Keypair.fromSecretKey(privateKey);
 
-      const packageId = process.env.FILE_NFT_PACKAGE_ID;
-      if (!packageId) {
-        throw new Error('FILE_NFT_PACKAGE_ID environment variable is not set');
-      }
-
       // 트랜잭션 생성
       const tx = new Transaction();
 
       // file_nft::create_collection 함수 호출
       tx.moveCall({
-        target: `${packageId}::file_nft::create_collection`,
+        target: `${FILE_NFT_PACKAGE_ID}::file_nft::create_collection`,
         arguments: [
           tx.pure.string(name),
           tx.pure.u64(maxSupply),
@@ -667,7 +749,7 @@ export class WalrusSealService extends Service {
         filter: {
           MatchAll: [
             {
-              StructType: `${process.env.FILE_NFT_PACKAGE_ID}::file_nft::FileNFT`,
+              StructType: `${FILE_NFT_PACKAGE_ID}::file_nft::FileNFT`,
             },
           ],
         },

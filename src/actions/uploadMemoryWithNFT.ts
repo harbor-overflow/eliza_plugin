@@ -63,7 +63,8 @@ Your response should include the valid JSON block and nothing else.
 export const uploadMemoryWithNFTAction: Action = {
   name: 'UPLOAD_MEMORY_WITH_NFT',
   similes: ['UPLOAD_MEMORY_NFT', 'ENCRYPT_AND_UPLOAD_MEMORY_WITH_NFT'],
-  description: 'Upload a memory, encrypt it with Seal, and create an NFT collection for access control',
+  description:
+    'Upload a memory, encrypt it with Seal, and create an NFT collection for access control',
 
   validate: async (
     _runtime: IAgentRuntime,
@@ -93,19 +94,21 @@ export const uploadMemoryWithNFTAction: Action = {
         prompt: prompt,
       });
       const responseContentObj = parseJSONObjectFromText(response);
-      
+
       // Parse and validate response fields
       const getNullableValue = (value: any) => {
         return value === 'null' || value === null ? null : value;
       };
-      
+
       // Extract all fields from the response
-      const name = getNullableValue(responseContentObj.name) || `Memory NFT Collection ${new Date().toISOString()}`;
+      const name =
+        getNullableValue(responseContentObj.name) ||
+        `Memory NFT Collection ${new Date().toISOString()}`;
       const deletable = getNullableValue(responseContentObj.deletable) ?? true;
       const epochs = getNullableValue(responseContentObj.epochs) ?? 3;
       const maxSupply = getNullableValue(responseContentObj.maxSupply) ?? 10; // 기본값 10
       const mintPrice = getNullableValue(responseContentObj.mintPrice) ?? 0.001;
-      
+
       // Get memory data
       logger.info('Getting memories...');
       const memories = await runtime.getMemories({
@@ -113,22 +116,23 @@ export const uploadMemoryWithNFTAction: Action = {
         tableName: 'messages',
         roomId: message.roomId ? message.roomId : undefined,
       });
-      
+
       // Convert memories to JSON and then to bytes
       const jsonData = JSON.stringify(memories, null, 2);
       const dataToEncrypt = new TextEncoder().encode(jsonData);
-      
+
       // Create WalrusSealService instance
       const walrusSealService = new WalrusSealService(runtime);
-      
+
       // Step 1: Create NFT Collection
       logger.info(`Creating NFT collection with name: ${name}`);
-      const createCollectionResult = await walrusSealService.createCollectionTask(
-        name,
-        maxSupply,
-        mintPrice * 1000000000 // Convert from SUI to MIST
-      );
-      
+      const createCollectionResult =
+        await walrusSealService.createCollectionTask(
+          name,
+          maxSupply,
+          mintPrice * 1000000000 // Convert from SUI to MIST
+        );
+
       if (!createCollectionResult.success) {
         const responseContent: Content = {
           text: `Failed to create NFT collection: ${createCollectionResult.error}`,
@@ -137,17 +141,17 @@ export const uploadMemoryWithNFTAction: Action = {
         await callback(responseContent);
         return responseContent;
       }
-      
+
       const collectionId = createCollectionResult.collectionId;
       logger.info(`Created collection with ID: ${collectionId}`);
-      
+
       // Step 2: Encrypt memory data
       logger.info('Encrypting memory data...');
-      const encryptedBytes = await walrusSealService.createEncryptTask(
+      const encryptedBytes = await walrusSealService.createFileNFTEncryptTask(
         dataToEncrypt,
         collectionId
       );
-      
+
       if (encryptedBytes instanceof Error) {
         const responseContent: Content = {
           text: `Failed to encrypt memory: ${encryptedBytes.message}`,
@@ -156,7 +160,7 @@ export const uploadMemoryWithNFTAction: Action = {
         await callback(responseContent);
         return responseContent;
       }
-      
+
       // Step 3: Upload encrypted data to Walrus
       logger.info('Uploading encrypted memory data to Walrus...');
       const uploadResult = await walrusSealService.createUploadTask(
@@ -164,7 +168,7 @@ export const uploadMemoryWithNFTAction: Action = {
         deletable,
         epochs
       );
-      
+
       if (!uploadResult.success) {
         const responseContent: Content = {
           text: `Failed to upload encrypted memory: ${uploadResult.error}`,
@@ -173,40 +177,46 @@ export const uploadMemoryWithNFTAction: Action = {
         await callback(responseContent);
         return responseContent;
       }
-      
+
       const blobId = uploadResult.blobId;
       logger.info(`Memory data uploaded with blob ID: ${blobId}`);
-      
+
       // Step 4: Update collection with file information
       // 이 부분은 Sui Move 컨트랙트와 연동 필요 - updateCollectionInfo 메서드가 없어 의사코드로 표시
       logger.info('Updating collection with file information...');
-      
-      /* 
-      // Pseudo code for updateCollectionInfo
-      const updateResult = await walrusSealService.updateCollectionInfoTask(
-        collectionId,
-        blobId,
-        allowlistId,
-        fileName,
-        fileSize,
-        0 // resource_type: 0 = 파일
-      );
-      
-      if (!updateResult.success) {
-        logger.error(`Failed to update collection info: ${updateResult.error}`);
-        // Continue anyway since collection and blob were created successfully
+      const fileName = `memory_${message.roomId ? message.roomId : runtime.agentId}_${Date.now()}.json`;
+
+      const updateCollectionResult =
+        await walrusSealService.updateCollectionMetadataTask(
+          collectionId,
+          blobId,
+          fileName,
+          dataToEncrypt.length,
+          0,
+          uploadResult.endEpoch
+        );
+      if (!updateCollectionResult.success) {
+        const responseContent: Content = {
+          text: `Failed to update collection metadata: ${updateCollectionResult.error}`,
+          actions: ['UPLOAD_FILE_WITH_NFT'],
+        };
+        await callback(responseContent);
+        return responseContent;
       }
-      */      
+      logger.info(
+        `Collection metadata updated with blob ID: ${blobId}, file name: ${fileName}, file size: ${dataToEncrypt.length}`
+      );
 
       // Prepare response text
-      let responseText = `Memory uploaded successfully and NFT collection created!\n\n` +
+      let responseText =
+        `Memory uploaded successfully and NFT collection created!\n\n` +
         `Collection ID: ${collectionId}\n` +
         `Name: ${name}\n` +
         `Max Supply: ${maxSupply}\n` +
         `Mint Price: ${mintPrice} SUI\n` +
         `Blob ID: ${blobId}\n` +
         `Memory size: ${memories.length} messages`;
-      
+
       const responseContent: Content = {
         text: responseText,
         actions: ['UPLOAD_MEMORY_WITH_NFT'],

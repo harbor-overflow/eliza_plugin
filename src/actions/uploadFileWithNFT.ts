@@ -66,7 +66,8 @@ Your response should include the valid JSON block and nothing else.
 export const uploadFileWithNFTAction: Action = {
   name: 'UPLOAD_FILE_WITH_NFT',
   similes: ['UPLOAD_FILE_NFT', 'ENCRYPT_AND_UPLOAD_FILE_WITH_NFT'],
-  description: 'Upload a file, encrypt it with Seal, and create an NFT collection for access control',
+  description:
+    'Upload a file, encrypt it with Seal, and create an NFT collection for access control',
 
   validate: async (
     _runtime: IAgentRuntime,
@@ -96,15 +97,17 @@ export const uploadFileWithNFTAction: Action = {
         prompt: prompt,
       });
       const responseContentObj = parseJSONObjectFromText(response);
-      
+
       // Parse and validate response fields
       const getNullableValue = (value: any) => {
         return value === 'null' || value === null ? null : value;
       };
-      
+
       // Extract all fields from the response
       const fileId = responseContentObj.fileId;
-      const name = getNullableValue(responseContentObj.name) || `File NFT Collection ${new Date().toISOString()}`;
+      const name =
+        getNullableValue(responseContentObj.name) ||
+        `File NFT Collection ${new Date().toISOString()}`;
       const deletable = getNullableValue(responseContentObj.deletable) ?? false;
       const epochs = getNullableValue(responseContentObj.epochs) ?? 3;
       const maxSupply = getNullableValue(responseContentObj.maxSupply) ?? 10; // 기본값 10
@@ -139,15 +142,16 @@ export const uploadFileWithNFTAction: Action = {
 
       // Create WalrusSealService instance
       const walrusSealService = new WalrusSealService(runtime);
-      
+
       // Step 1: Create NFT Collection
       logger.info(`Creating NFT collection with name: ${name}`);
-      const createCollectionResult = await walrusSealService.createCollectionTask(
-        name,
-        maxSupply,
-        mintPrice
-      );
-      
+      const createCollectionResult =
+        await walrusSealService.createCollectionTask(
+          name,
+          maxSupply,
+          mintPrice
+        );
+
       if (!createCollectionResult.success) {
         const responseContent: Content = {
           text: `Failed to create NFT collection: ${createCollectionResult.error}`,
@@ -156,17 +160,17 @@ export const uploadFileWithNFTAction: Action = {
         await callback(responseContent);
         return responseContent;
       }
-      
+
       const collectionId = createCollectionResult.collectionId;
       logger.info(`Created collection with ID: ${collectionId}`);
-      
+
       // Step 2: Encrypt the file data with Seal using the nft collection ID
       logger.info('Encrypting file data...');
-      const encryptedBytes = await walrusSealService.createEncryptTask(
+      const encryptedBytes = await walrusSealService.createFileNFTEncryptTask(
         fileData,
-        collectionId,
+        collectionId
       );
-      
+
       if (encryptedBytes instanceof Error) {
         const responseContent: Content = {
           text: `Failed to encrypt file: ${encryptedBytes.message}`,
@@ -175,7 +179,7 @@ export const uploadFileWithNFTAction: Action = {
         await callback(responseContent);
         return responseContent;
       }
-      
+
       // Step 3: Upload encrypted data to Walrus
       logger.info('Uploading encrypted data to Walrus...');
       const uploadResult = await walrusSealService.createUploadTask(
@@ -183,7 +187,7 @@ export const uploadFileWithNFTAction: Action = {
         deletable,
         epochs
       );
-      
+
       if (!uploadResult.success) {
         const responseContent: Content = {
           text: `Failed to upload encrypted data: ${uploadResult.error}`,
@@ -192,39 +196,43 @@ export const uploadFileWithNFTAction: Action = {
         await callback(responseContent);
         return responseContent;
       }
-      
+
       const blobId = uploadResult.blobId;
       logger.info(`Data uploaded with blob ID: ${blobId}`);
-      
+
       // Step 4: Update collection with file information
-      // 이 부분은 Sui Move 컨트랙트와 연동 필요 - updateCollectionInfo 메서드가 없어 의사코드로 표시
       logger.info('Updating collection with file information...');
-      
-      /* 
-      // Pseudo code for updateCollectionInfo
-      const updateResult = await walrusSealService.updateCollectionInfoTask(
-        collectionId,
-        blobId,
-        allowlistId,
-        fileName,
-        fileSize,
-        0 // resource_type: 0 = 파일
-      );
-      
-      if (!updateResult.success) {
-        logger.error(`Failed to update collection info: ${updateResult.error}`);
-        // Continue anyway since collection and blob were created successfully
+
+      const updateCollectionResult =
+        await walrusSealService.updateCollectionMetadataTask(
+          collectionId,
+          blobId,
+          fileName,
+          fileSize,
+          0,
+          uploadResult.endEpoch
+        );
+      if (!updateCollectionResult.success) {
+        const responseContent: Content = {
+          text: `Failed to update collection metadata: ${updateCollectionResult.error}`,
+          actions: ['UPLOAD_FILE_WITH_NFT'],
+        };
+        await callback(responseContent);
+        return responseContent;
       }
-      */
-      
+      logger.info(
+        `Collection metadata updated with blob ID: ${blobId}, file name: ${fileName}, file size: ${fileSize}`
+      );
+
       // Delete the file from storage if upload was successful
       if (fs.existsSync(fileInfo.filePath)) {
         fs.unlinkSync(fileInfo.filePath);
       }
       global.fileInfo.delete(fileId);
-      
+
       // Prepare response text
-      let responseText = `File uploaded successfully and NFT collection created!\n\n` +
+      let responseText =
+        `File uploaded successfully and NFT collection created!\n\n` +
         `Collection ID: ${collectionId}\n` +
         `Name: ${name}\n` +
         `Max Supply: ${maxSupply}\n` +
@@ -249,111 +257,111 @@ export const uploadFileWithNFTAction: Action = {
     }
   },
 
-examples: [
-  [
-    {
-      name: '{{name1}}',
-      content: {
-        text: 'upload file with nft fileId: ba057d8e-9b45-4c42-b2b5-f5177ccc690c',
+  examples: [
+    [
+      {
+        name: '{{name1}}',
+        content: {
+          text: 'upload file with nft fileId: ba057d8e-9b45-4c42-b2b5-f5177ccc690c',
+        },
       },
-    },
-    {
-      name: '{{name2}}',
-      content: {
-        text: 'File uploaded successfully and NFT collection created!\n\nCollection ID: 0x123abc\nName: File NFT Collection 2025-05-22T10:15:30.123Z\nMax Supply: 10\nMint Price: 0.001 SUI\nBlob ID: blob123',
-        actions: ['UPLOAD_FILE_WITH_NFT'],
+      {
+        name: '{{name2}}',
+        content: {
+          text: 'File uploaded successfully and NFT collection created!\n\nCollection ID: 0x123abc\nName: File NFT Collection 2025-05-22T10:15:30.123Z\nMax Supply: 10\nMint Price: 0.001 SUI\nBlob ID: blob123',
+          actions: ['UPLOAD_FILE_WITH_NFT'],
+        },
       },
-    },
+    ],
+    [
+      {
+        name: '{{name1}}',
+        content: {
+          text: 'upload file to nft collection "Premium Files" with mint price 0.5 fileId: a5ef6dd4-0b42-43b5-a181-0a140585f7a2',
+        },
+      },
+      {
+        name: '{{name2}}',
+        content: {
+          text: 'File uploaded successfully and NFT collection created!\n\nCollection ID: 0x456def\nName: Premium Files\nMax Supply: 10\nMint Price: 0.5 SUI\nBlob ID: blob456',
+          actions: ['UPLOAD_FILE_WITH_NFT'],
+        },
+      },
+    ],
+    [
+      {
+        name: '{{name1}}',
+        content: {
+          text: 'upload this file with max supply and 5 epochs fileId: myfile123',
+        },
+      },
+      {
+        name: '{{name2}}',
+        content: {
+          text: 'File uploaded successfully and NFT collection created!\n\nCollection ID: 0x789ghi\nName: File NFT Collection 2025-05-22T10:15:30.123Z\nMax Supply: 100\nMint Price: 0.001 SUI\nBlob ID: blob789',
+          actions: ['UPLOAD_FILE_WITH_NFT'],
+        },
+      },
+    ],
+    [
+      {
+        name: '{{name1}}',
+        content: {
+          text: 'upload file to nft with deletable fileId: someId',
+        },
+      },
+      {
+        name: '{{name2}}',
+        content: {
+          text: 'File uploaded successfully and NFT collection created!\n\nCollection ID: 0xabc123\nName: File NFT Collection 2025-05-22T10:15:30.123Z\nMax Supply: 10\nMint Price: 0.001 SUI\nBlob ID: blob555',
+          actions: ['UPLOAD_FILE_WITH_NFT'],
+        },
+      },
+    ],
+    [
+      {
+        name: '{{name1}}',
+        content: {
+          text: 'upload fileNFT with not deletable fileId: a5ef6dd4-0b42-43b5-a181-0a140585f7a2',
+        },
+      },
+      {
+        name: '{{name2}}',
+        content: {
+          text: 'File uploaded successfully and NFT collection created!\n\nCollection ID: 0xdef456\nName: File NFT Collection 2025-05-22T10:15:30.123Z\nMax Supply: 10\nMint Price: 0.001 SUI\nBlob ID: blob444',
+          actions: ['UPLOAD_FILE_WITH_NFT'],
+        },
+      },
+    ],
+    [
+      {
+        name: '{{name1}}',
+        content: {
+          text: 'upload this file to nft fileId: 0x123abc name: Awesome Collection',
+        },
+      },
+      {
+        name: '{{name2}}',
+        content: {
+          text: 'File uploaded successfully and NFT collection created!\n\nCollection ID: 0xfed321\nName: Awesome Collection\nMax Supply: 10\nMint Price: 0.001 SUI\nBlob ID: blob777',
+          actions: ['UPLOAD_FILE_WITH_NFT'],
+        },
+      },
+    ],
+    [
+      {
+        name: '{{name1}}',
+        content: {
+          text: 'upload file NFT {"name":"Premium Collection", "deletable":true, "epochs":5, "maxSupply":true, "mintPrice":1.5} fileId: a5ef6dd4-0b42-43b5-a181-0a140585f7a2',
+        },
+      },
+      {
+        name: '{{name2}}',
+        content: {
+          text: 'File uploaded successfully and NFT collection created!\n\nCollection ID: 0x999fff\nName: Premium Collection\nMax Supply: 100\nMint Price: 1.5 SUI\nBlob ID: blob999',
+          actions: ['UPLOAD_FILE_WITH_NFT'],
+        },
+      },
+    ],
   ],
-  [
-    {
-      name: '{{name1}}',
-      content: {
-        text: 'upload file to nft collection "Premium Files" with mint price 0.5 fileId: a5ef6dd4-0b42-43b5-a181-0a140585f7a2',
-      },
-    },
-    {
-      name: '{{name2}}',
-      content: {
-        text: 'File uploaded successfully and NFT collection created!\n\nCollection ID: 0x456def\nName: Premium Files\nMax Supply: 10\nMint Price: 0.5 SUI\nBlob ID: blob456',
-        actions: ['UPLOAD_FILE_WITH_NFT'],
-      },
-    },
-  ],
-  [
-    {
-      name: '{{name1}}',
-      content: {
-        text: 'upload this file with max supply and 5 epochs fileId: myfile123',
-      },
-    },
-    {
-      name: '{{name2}}',
-      content: {
-        text: 'File uploaded successfully and NFT collection created!\n\nCollection ID: 0x789ghi\nName: File NFT Collection 2025-05-22T10:15:30.123Z\nMax Supply: 100\nMint Price: 0.001 SUI\nBlob ID: blob789',
-        actions: ['UPLOAD_FILE_WITH_NFT'],
-      },
-    },
-  ],
-  [
-    {
-      name: '{{name1}}',
-      content: {
-        text: 'upload file to nft with deletable fileId: someId',
-      },
-    },
-    {
-      name: '{{name2}}',
-      content: {
-        text: 'File uploaded successfully and NFT collection created!\n\nCollection ID: 0xabc123\nName: File NFT Collection 2025-05-22T10:15:30.123Z\nMax Supply: 10\nMint Price: 0.001 SUI\nBlob ID: blob555',
-        actions: ['UPLOAD_FILE_WITH_NFT'],
-      },
-    },
-  ],
-  [
-    {
-      name: '{{name1}}',
-      content: {
-        text: 'upload fileNFT with not deletable fileId: a5ef6dd4-0b42-43b5-a181-0a140585f7a2',
-      },
-    },
-    {
-      name: '{{name2}}',
-      content: {
-        text: 'File uploaded successfully and NFT collection created!\n\nCollection ID: 0xdef456\nName: File NFT Collection 2025-05-22T10:15:30.123Z\nMax Supply: 10\nMint Price: 0.001 SUI\nBlob ID: blob444',
-        actions: ['UPLOAD_FILE_WITH_NFT'],
-      },
-    },
-  ],
-  [
-    {
-      name: '{{name1}}',
-      content: {
-        text: 'upload this file to nft fileId: 0x123abc name: Awesome Collection',
-      },
-    },
-    {
-      name: '{{name2}}',
-      content: {
-        text: 'File uploaded successfully and NFT collection created!\n\nCollection ID: 0xfed321\nName: Awesome Collection\nMax Supply: 10\nMint Price: 0.001 SUI\nBlob ID: blob777',
-        actions: ['UPLOAD_FILE_WITH_NFT'],
-      },
-    },
-  ],
-  [
-    {
-      name: '{{name1}}',
-      content: {
-        text: 'upload file NFT {"name":"Premium Collection", "deletable":true, "epochs":5, "maxSupply":true, "mintPrice":1.5} fileId: a5ef6dd4-0b42-43b5-a181-0a140585f7a2',
-      },
-    },
-    {
-      name: '{{name2}}',
-      content: {
-        text: 'File uploaded successfully and NFT collection created!\n\nCollection ID: 0x999fff\nName: Premium Collection\nMax Supply: 100\nMint Price: 1.5 SUI\nBlob ID: blob999',
-        actions: ['UPLOAD_FILE_WITH_NFT'],
-      },
-    },
-  ],
-],
 };
