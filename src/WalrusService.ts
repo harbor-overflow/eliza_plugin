@@ -9,12 +9,12 @@ import { Ed25519Keypair } from '@mysten/sui/keypairs/ed25519';
 import { WalrusClient } from '@mysten/walrus';
 
 /**
- * WalrusService - 업로드 및 다운로드 기능을 제공하는 서비스
- * WalrusClient를 사용하는 작업을 처리합니다.
+ * WalrusService - A service providing upload and download functionality
+ * Handles tasks that use WalrusClient.
  */
 export class WalrusService extends Service {
   static serviceType = ServiceType.TASK;
-  capabilityDescription = '업로드 및 다운로드 기능을 제공하는 서비스.';
+  capabilityDescription = 'A service providing upload and download functionality.';
 
   async createDownloadTask(blobId: string) {
     try {

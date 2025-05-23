@@ -11,7 +11,6 @@ import {
   parseJSONObjectFromText,
 } from '@elizaos/core';
 import { SealService } from 'src/sealService';
-import { WalrusSealService } from 'src/service';
 import { WalrusService } from 'src/WalrusService';
 
 const downloadAndDecryptMemoryTemplate = `# Task: Download and Decrypt Memory

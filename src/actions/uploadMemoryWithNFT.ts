@@ -184,7 +184,6 @@ export const uploadMemoryWithNFTAction: Action = {
       logger.info(`Memory data uploaded with blob ID: ${blobId}`);
 
       // Step 4: Update collection with file information
-      // 이 부분은 Sui Move 컨트랙트와 연동 필요 - updateCollectionInfo 메서드가 없어 의사코드로 표시
       logger.info('Updating collection with file information...');
       const fileName = `memory_${message.roomId ? message.roomId : runtime.agentId}_${Date.now()}.json`;
 

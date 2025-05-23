@@ -10,7 +10,6 @@ import {
   ModelType,
   parseJSONObjectFromText,
 } from '@elizaos/core';
-import { WalrusSealService } from 'src/service';
 import fs from 'fs';
 import { SealService } from 'src/sealService';
 import { WalrusService } from 'src/WalrusService';

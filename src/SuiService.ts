@@ -11,19 +11,19 @@ import { FILE_NFT_PACKAGE_ID, TESTNET_ALLOWLIST_PACKAGE_ID } from './constants';
 import { SuiObjectCreateChange } from './types';
 
 /**
- * SuiService - Sui 블록체인 관련 기능을 제공하는 서비스
- * SuiClient를 사용하는 작업을 처리합니다.
+ * SuiService - A service that provides Sui blockchain related features
+ * Handles tasks that use SuiClient.
  */
 export class SuiService extends Service {
   static serviceType = ServiceType.TASK;
-  capabilityDescription = 'Sui 블록체인 관련 기능을 제공하는 서비스입니다.';
+  capabilityDescription = 'A service that provides Sui blockchain related features.';
 
   constructor(protected runtime: IAgentRuntime) {
     super(runtime);
   }
 
   /**
-   * allowlist에 주소를 추가하는 태스크
+   * Task to add an address to an allowlist
    */
   async addAllowlistTask(allowlistId: string, capId: string, address: string) {
     try {
@@ -66,7 +66,7 @@ export class SuiService extends Service {
   }
 
   /**
-   * allowlist를 생성하는 태스크
+   * Task to create an allowlist
    */
   async createAllowlistTask(name: string) {
     try {
@@ -152,7 +152,7 @@ export class SuiService extends Service {
   }
 
   /**
-   * 새로운 NFT 컬렉션을 생성하는 태스크
+   * Task to create a new NFT collection
    */
   async createCollectionTask(
     name: string,
@@ -167,10 +167,10 @@ export class SuiService extends Service {
       }
       const keypair = Ed25519Keypair.fromSecretKey(privateKey);
 
-      // 트랜잭션 생성
+      // Create transaction
       const tx = new Transaction();
 
-      // file_nft::create_collection 함수 호출
+      // Call file_nft::create_collection function
       tx.moveCall({
         target: `${FILE_NFT_PACKAGE_ID}::file_nft::create_collection`,
         arguments: [
@@ -180,7 +180,7 @@ export class SuiService extends Service {
         ],
       });
 
-      // 트랜잭션 실행
+      // Execute transaction
       const result = await suiClient.signAndExecuteTransaction({
         signer: keypair,
         transaction: tx,
@@ -190,7 +190,7 @@ export class SuiService extends Service {
         },
       });
 
-      // Collection objectId 추출
+      // Extract Collection objectId
       const collectionObj = result.objectChanges?.find(
         (change) =>
           change.type === 'created' &&
@@ -215,7 +215,7 @@ export class SuiService extends Service {
   }
 
   /**
-   * 파일 NFT의 메타데이터를 업데이트하는 태스크
+   * Task to update file NFT metadata
    */
   async updateCollectionMetadataTask(
     collectionId: string,
@@ -233,10 +233,10 @@ export class SuiService extends Service {
       }
       const keypair = Ed25519Keypair.fromSecretKey(privateKey);
 
-      // 트랜잭션 생성
+      // Create transaction
       const tx = new Transaction();
 
-      // update_collection_metadata 함수 호출
+      // Call update_collection_metadata function
       tx.moveCall({
         target: `${FILE_NFT_PACKAGE_ID}::file_nft::update_collection_metadata`,
         arguments: [
@@ -249,7 +249,7 @@ export class SuiService extends Service {
         ],
       });
 
-      // 트랜잭션 실행
+      // Execute transaction
       const result = await suiClient.signAndExecuteTransaction({
         signer: keypair,
         transaction: tx,
@@ -259,7 +259,7 @@ export class SuiService extends Service {
         },
       });
 
-      // 실행 결과 확인
+      // Check execution result
       const status = result.effects?.status.status;
       const success = status === 'success';
 
@@ -282,7 +282,7 @@ export class SuiService extends Service {
   }
 
   /**
-   * NFT를 민팅하는 태스크
+   * Task to mint an NFT
    */
   async mintAccessNFT(collection: string, paymentAmount: number) {
     try {
@@ -293,19 +293,19 @@ export class SuiService extends Service {
       }
       const keypair = Ed25519Keypair.fromSecretKey(privateKey);
 
-      // 트랜잭션 생성
+      // Create transaction
       const tx = new Transaction();
 
-      // SUI 코인 생성
+      // Create SUI coin
       const [paymentCoin] = tx.splitCoins(tx.gas, [tx.pure.u64(paymentAmount)]);
 
-      // file_nft::mint_access_nft 함수 호출
+      // Call file_nft::mint_access_nft function
       tx.moveCall({
         target: `${FILE_NFT_PACKAGE_ID}::file_nft::mint_access_nft`,
         arguments: [tx.object(collection), paymentCoin],
       });
 
-      // 트랜잭션 실행
+      // Execute transaction
       const result = await suiClient.signAndExecuteTransaction({
         signer: keypair,
         transaction: tx,
@@ -315,7 +315,7 @@ export class SuiService extends Service {
         },
       });
 
-      // 실행 결과 확인
+      // Check execution result
       const status = result.effects?.status.status;
       const success = status === 'success';
 
@@ -338,7 +338,7 @@ export class SuiService extends Service {
   }
 
   /**
-   * 사용자 소유의 NFT 목록을 조회하는 태스크
+   * Task to list NFTs owned by the user
    */
   async listMyNFTsTask() {
     try {
@@ -350,7 +350,7 @@ export class SuiService extends Service {
       const keypair = Ed25519Keypair.fromSecretKey(privateKey);
       const address = keypair.getPublicKey().toSuiAddress();
 
-      // AccessNFT 객체 조회
+      // Query AccessNFT objects
       const nfts = await suiClient.getOwnedObjects({
         owner: address,
         filter: {
@@ -366,7 +366,7 @@ export class SuiService extends Service {
         },
       });
 
-      // NFT 정보 파싱
+      // Parse NFT information
       const nftList = nfts.data.map((nft) => {
         const content = nft.data?.content as any;
         return {
@@ -400,7 +400,7 @@ export class SuiService extends Service {
       const keypair = Ed25519Keypair.fromSecretKey(privateKey);
       const address = keypair.getPublicKey().toSuiAddress();
 
-      // Collection 객체 조회
+      // Query Collection objects
       const collections = await suiClient.getOwnedObjects({
         owner: address,
         filter: {
@@ -416,7 +416,7 @@ export class SuiService extends Service {
         },
       });
 
-      // Collection 정보 파싱
+      // Parse Collection information
       const collectionList = collections.data.map((collection) => {
         const content = collection.data?.content as any;
         return {

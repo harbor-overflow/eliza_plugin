@@ -17,19 +17,19 @@ import { FILE_NFT_PACKAGE_ID, TESTNET_ALLOWLIST_PACKAGE_ID } from './constants';
 import { Transaction } from '@mysten/sui/transactions';
 
 /**
- * SealService - 암호화 및 복호화 기능을 제공하는 서비스
- * SealClient를 사용하는 작업을 처리합니다.
+ * SealService - A service providing encryption and decryption functions
+ * Handles tasks that use SealClient.
  */
 export class SealService extends Service {
   static serviceType = ServiceType.TASK;
-  capabilityDescription = '암호화 및 복호화 기능을 제공하는 서비스입니다.';
+  capabilityDescription = 'A service that provides encryption and decryption functions.';
 
   constructor(protected runtime: IAgentRuntime) {
     super(runtime);
   }
 
   /**
-   * Allowlist로 데이터를 암호화하는 태스크
+   * Task to encrypt data using an allowlist
    */
   async createAllowlistEncryptTask(
     dataToEncrypt: Uint8Array<ArrayBufferLike>,
@@ -64,7 +64,7 @@ export class SealService extends Service {
   }
 
   /**
-   * FileNFT를 위한 데이터 암호화 태스크
+   * Task to encrypt data for FileNFT
    */
   async createFileNFTEncryptTask(
     dataToEncrypt: Uint8Array<ArrayBufferLike>,
@@ -99,7 +99,7 @@ export class SealService extends Service {
   }
 
   /**
-   * 암호화된 데이터를 복호화하는 태스크
+   * Task to decrypt encrypted data
    */
   async createAllowlistDecryptTask(
     encryptedData: Uint8Array<ArrayBufferLike>,
@@ -117,7 +117,7 @@ export class SealService extends Service {
         verifyKeyServers: false,
       });
 
-      // 암호화 ID 추출
+      // Extract encryption ID
       const id = EncryptedObject.parse(new Uint8Array(encryptedData)).id;
 
       logger.info('Creating decryption transaction...');
@@ -164,7 +164,7 @@ export class SealService extends Service {
   }
 
   /**
-   * FileNFT를 위한 데이터 복호화 태스크
+   * Task to decrypt data for FileNFT
    */
   async createFileNFTDecryptTask(
     encryptedData: Uint8Array<ArrayBufferLike>,
@@ -183,7 +183,7 @@ export class SealService extends Service {
         verifyKeyServers: false,
       });
 
-      // 암호화 ID 추출
+      // Extract encryption ID
       const id = EncryptedObject.parse(new Uint8Array(encryptedData)).id;
 
       logger.info('Creating decryption transaction...');

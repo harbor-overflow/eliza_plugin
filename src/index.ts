@@ -20,7 +20,7 @@ import { SuiService } from './SuiService';
 import { SealService } from './sealService';
 import { WalrusService } from './WalrusService';
 
-const MAX_CHUNK_SIZE = 10 * 1024 * 1024; // 5MB 청크 사이즈 (멀터 한계보다 작게)
+const MAX_CHUNK_SIZE = 10 * 1024 * 1024;
 const UPLOAD_DIR = path.join(process.cwd(), 'data/uploads');
 export const DOWNLOAD_DIR = path.join(process.cwd(), 'data/downloads');
 
@@ -269,7 +269,7 @@ export const harborPlugin: Plugin = {
                 contentType,
                 receivedChunks: new Set(),
                 createdAt: Date.now(),
-                expiresAt: Date.now() + 24 * 60 * 60 * 1000, // 24시간 후 만료
+                expiresAt: Date.now() + 24 * 60 * 60 * 1000, // expires in 24 hours
               });
             }
 
@@ -373,7 +373,7 @@ export const harborPlugin: Plugin = {
             contentType: fileInfo.contentType,
             size: stats.size,
             createdAt: Date.now(),
-            expiresAt: Date.now() + 24 * 60 * 60 * 1000, // 24시간 후 만료
+            expiresAt: Date.now() + 24 * 60 * 60 * 1000, // expires in 24 hours
           });
 
           return res.status(200).json({
@@ -444,7 +444,7 @@ export const harborPlugin: Plugin = {
               contentType: req.file.mimetype,
               size: req.file.size,
               createdAt: Date.now(),
-              expiresAt: Date.now() + 24 * 60 * 60 * 1000, // 24시간 후 만료
+              expiresAt: Date.now() + 24 * 60 * 60 * 1000, // expires in 24 hours
             });
             console.log('global.fileInfo: ', global.fileInfo);
 
