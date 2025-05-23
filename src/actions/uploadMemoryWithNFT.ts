@@ -106,10 +106,10 @@ export const uploadMemoryWithNFTAction: Action = {
       const name =
         getNullableValue(responseContentObj.name) ||
         `Memory NFT Collection ${new Date().toISOString()}`;
-      const deletable = getNullableValue(responseContentObj.deletable) ?? true;
-      const epochs = getNullableValue(responseContentObj.epochs) ?? 3;
-      const maxSupply = getNullableValue(responseContentObj.maxSupply) ?? 10; // 기본값 10
-      const mintPrice = getNullableValue(responseContentObj.mintPrice) ?? 0.001;
+      const deletable = getNullableValue(responseContentObj.deletable) ?? false;
+      const epochs = getNullableValue(responseContentObj.epochs) ?? 3; // day in testnet, multiple weeks in mainnet
+      const maxSupply = getNullableValue(responseContentObj.maxSupply) ?? 10;
+      const mintPrice = getNullableValue(responseContentObj.mintPrice) ?? 0;
 
       // Get memory data
       logger.info('Getting memories...');

@@ -111,9 +111,9 @@ export const uploadFileWithNFTAction: Action = {
         getNullableValue(responseContentObj.name) ||
         `File NFT Collection ${new Date().toISOString()}`;
       const deletable = getNullableValue(responseContentObj.deletable) ?? false;
-      const epochs = getNullableValue(responseContentObj.epochs) ?? 3;
-      const maxSupply = getNullableValue(responseContentObj.maxSupply) ?? 10; // 기본값 10
-      const mintPrice = getNullableValue(responseContentObj.mintPrice) ?? 0.001;
+      const epochs = getNullableValue(responseContentObj.epochs) ?? 3; // day in testnet, multiple weeks in mainnet
+      const maxSupply = getNullableValue(responseContentObj.maxSupply) ?? 10;
+      const mintPrice = getNullableValue(responseContentObj.mintPrice) ?? 0;
 
       // Validate file exists
       if (!fileId || !global.fileInfo) {

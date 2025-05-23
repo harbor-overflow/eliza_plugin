@@ -101,7 +101,7 @@ export const mintAccessNFTAction: Action = {
 
       const responseContent: Content = {
         text: success
-          ? `Successfully minted AccessNFT!\nCollection ID: ${responseContentObj.collectionId}\nTransaction ID: ${transactionDigest}\nMint Price: ${collection.mint_price} SUI\n\nhttps://testnet.suivision.xyz/txblock/${transactionDigest}`
+          ? `Successfully minted AccessNFT!\nCollection ID: ${responseContentObj.collectionId}\nTransaction ID: ${transactionDigest}\nMint Price: ${collection.mint_price} SUI\n\n[https://testnet.suivision.xyz/txblock/${transactionDigest}](https://testnet.suivision.xyz/txblock/${transactionDigest})`
           : `Failed to mint AccessNFT: ${error}`,
         actions: ['MINT_ACCESS_NFT'],
       };

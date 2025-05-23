@@ -16,7 +16,8 @@ import { SuiObjectCreateChange } from './types';
  */
 export class SuiService extends Service {
   static serviceType = ServiceType.TASK;
-  capabilityDescription = 'A service that provides Sui blockchain related features.';
+  capabilityDescription =
+    'A service that provides Sui blockchain related features.';
 
   constructor(protected runtime: IAgentRuntime) {
     super(runtime);
@@ -390,6 +391,56 @@ export class SuiService extends Service {
     }
   }
 
+  /**
+   * Task get nft collection information from nft id
+   */
+  async getNFTCollectionIdTask(nftId: string) {
+    try {
+      const suiClient = new SuiClient({ url: getFullnodeUrl('testnet') });
+      // Query AccessNFT objects
+      const nft = await suiClient.getObject({
+        id: nftId,
+        options: {
+          showContent: true,
+          showType: true,
+        },
+      });
+
+      // Parse NFT information
+      const content = nft.data?.content as any;
+      const collectionId = content?.fields?.collection_id;
+      if (!collectionId) {
+        throw new Error('Collection ID not found in NFT');
+      }
+      const collection = await suiClient.getObject({
+        id: collectionId,
+        options: {
+          showContent: true,
+          showType: true,
+        },
+      });
+      const collectionContent = collection.data?.content as any;
+      return {
+        success: true,
+        collectionId: collectionId,
+        endEpoch: collectionContent?.fields?.end_epoch,
+        fileName: collectionContent?.fields?.file_name,
+        fileSize: collectionContent?.fields?.file_size,
+        resourceType: collectionContent?.fields?.resource_type,
+        blobId: collectionContent?.fields?.blob_id,
+      };
+    } catch (error) {
+      logger.error(`Failed to get NFT collection info: ${error}`);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : String(error),
+      };
+    }
+  }
+
+  /**
+   * Task to list all collections owned by the user
+   */
   async listCollectionsTask() {
     try {
       const suiClient = new SuiClient({ url: getFullnodeUrl('testnet') });

@@ -11,6 +11,7 @@ import {
   parseJSONObjectFromText,
 } from '@elizaos/core';
 import { SealService } from 'src/SealService';
+import { isValidMemory } from 'src/types';
 import { WalrusService } from 'src/WalrusService';
 
 const downloadAndDecryptMemoryTemplate = `# Task: Download and Decrypt Memory
@@ -46,16 +47,6 @@ Response format should be formatted in a valid JSON block like this:
 
 Your response should include the valid JSON block and nothing else.
 `;
-
-function isValidMemory(item: any): item is Memory {
-  return (
-    item &&
-    typeof item === 'object' &&
-    typeof item.entityId === 'string' &&
-    typeof item.content === 'object' &&
-    typeof item.roomId === 'string'
-  );
-}
 
 export const downloadAndDecryptMemoryAction: Action = {
   name: 'DOWNLOAD_AND_DECRYPT_MEMORY',
@@ -95,7 +86,7 @@ export const downloadAndDecryptMemoryAction: Action = {
       });
       const responseContentObj = parseJSONObjectFromText(response);
       console.log('responseContentObj', responseContentObj);
-      
+
       const walrusService = new WalrusService(runtime);
       const { success, data, error } = await walrusService.createDownloadTask(
         responseContentObj.blobId
@@ -137,7 +128,7 @@ export const downloadAndDecryptMemoryAction: Action = {
       const responseContent: Content = {
         text: success
           ? `memory downloaded successfully!`
-          : `Failed to upload memory: ${error}`,
+          : `Failed to add memory: ${error}`,
         actions: ['DOWNLOAD_AND_DECRYPT_MEMORY'],
       };
 

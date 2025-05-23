@@ -144,7 +144,7 @@ export const downloadAndDecryptFileAction: Action = {
           contentType: contentType,
           filePath: filePath,
           createdAt: Date.now(),
-          expiresAt: Date.now() + 24 * 60 * 60 * 1000, // 24시간 후 만료
+          expiresAt: Date.now() + 24 * 60 * 60 * 1000, // 1 day expiration
         });
 
         // create download link

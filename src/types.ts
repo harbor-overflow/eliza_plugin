@@ -1,3 +1,4 @@
+import { Memory } from '@elizaos/core';
 import { ObjectOwner } from '@mysten/sui/client';
 
 export type SuiObjectCreateChange = {
@@ -9,3 +10,13 @@ export type SuiObjectCreateChange = {
   type: 'created';
   version: string;
 };
+
+export function isValidMemory(item: any): item is Memory {
+  return (
+    item &&
+    typeof item === 'object' &&
+    typeof item.entityId === 'string' &&
+    typeof item.content === 'object' &&
+    typeof item.roomId === 'string'
+  );
+}
