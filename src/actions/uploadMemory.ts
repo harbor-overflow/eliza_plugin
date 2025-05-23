@@ -10,44 +10,41 @@ import {
   ModelType,
   parseJSONObjectFromText,
 } from '@elizaos/core';
-import { SealService } from 'src/SealService';
 import { WalrusService } from 'src/WalrusService';
 
-const encryptAndUploadMemoryTemplate = `# Task: Encrypt and Upload Memory
+const uploadMemoryTemplate = `# Task: Encrypt and Upload Memory
 
 # Recent Messages:
 {{recentMessages}}
 
 # Instructions:
 Extract the following fields from the user’s last message:
-- allowlistId: string (required)
 - tableName: string or null
 - deletable: boolean or null
 - epochs: number or null
 
 # Examples
-User: upload memory 0x123abc  
-Assistant: {"allowlistId":"0x123abc","tableName":null,"deletable":null,"epochs":null}
+User: upload memory  
+Assistant: {"tableName":null,"deletable":null,"epochs":null}
 
-User: upload this conversation 0x123abc table myTable  
-Assistant: {"allowlistId":"0x123abc","tableName":"myTable","deletable":null,"epochs":null}
+User: upload this conversation table myTable  
+Assistant: {"tableName":"myTable","deletable":null,"epochs":null}
 
-User: upload history 0x123abc table myTable and make it deletable  
-Assistant: {"allowlistId":"0x123abc","tableName":"myTable","deletable":true,"epochs":null}
+User: upload history table myTable and make it deletable  
+Assistant: {"tableName":"myTable","deletable":true,"epochs":null}
 
-User: upload this conversation 0x123abc table myTable and make it not deletable  
-Assistant: {"allowlistId":"0x123abc","tableName":"myTable","deletable":false,"epochs":null}
+User: upload this conversation table myTable and make it not deletable  
+Assistant: {"tableName":"myTable","deletable":false,"epochs":null}
 
-User: upload this conversation 0x123abc with 5 epochs  
-Assistant: {"allowlistId":"0x123abc","tableName":null,"deletable":null,"epochs":5}
+User: upload this conversation with 5 epochs  
+Assistant: {"tableName":null,"deletable":null,"epochs":5}
 
-User: upload memory {"0x123abc", "myTable", true, 5}
-Assistant: {"allowlistId":"0x123abc","tableName":"myTable","deletable":true,"epochs":5}
+User: upload memory {"myTable", true, 5}
+Assistant: {"tableName":"myTable","deletable":true,"epochs":5}
 
 Response format should be formatted in a valid JSON block like this:
 \`\`\`json
 {
-  "allowlistId": string,
   "tableName": string | null,
   "deletable": boolean | null,
   "epochs": number | null
@@ -57,10 +54,10 @@ Response format should be formatted in a valid JSON block like this:
 Your response should include the valid JSON block and nothing else.
 `;
 
-export const encryptAndUploadMemoryAction: Action = {
-  name: 'ENCRYPT_AND_UPLOAD_MEMORY',
-  similes: ['UPLOAD_MEMORY', 'UPLOAD_MEMORIES', 'ENCRYPT_AND_UPLOAD_MEMORIES'],
-  description: 'Get memories and encrypt with seal and upload them to walrus',
+export const uploadMemoryAction: Action = {
+  name: 'UPLOAD_MEMORY',
+  similes: ['UPLOAD_MEMORY', 'UPLOAD_MEMORIES'],
+  description: 'Get memories and upload them to walrus',
 
   validate: async (
     _runtime: IAgentRuntime,
@@ -80,11 +77,11 @@ export const encryptAndUploadMemoryAction: Action = {
     _responses: Memory[]
   ) => {
     try {
-      logger.info('Handling ENCRYPT_AND_UPLOAD_MEMORY action');
+      logger.info('Handling UPLOAD_MEMORY action');
 
       const prompt = composePromptFromState({
         state,
-        template: encryptAndUploadMemoryTemplate,
+        template: uploadMemoryTemplate,
       });
       const response = await runtime.useModel(ModelType.TEXT_SMALL, {
         prompt: prompt,
@@ -108,19 +105,11 @@ export const encryptAndUploadMemoryAction: Action = {
         roomId: message.roomId ? message.roomId : undefined,
       });
       const jsonData = JSON.stringify(memories, null, 0);
-      const dataToEncrypt = new TextEncoder().encode(jsonData);
-
-      logger.info(`Encrypting file data with Seal...`);
-      const sealService = new SealService(runtime);
-      const encryptedData = await sealService.createAllowlistEncryptTask(
-        dataToEncrypt,
-        responseContentObj.allowlistId
-      );
-      logger.info(`File data encrypted successfully`);
+      const encodedData = new TextEncoder().encode(jsonData);
 
       const walrusService = new WalrusService(runtime);
       const { success, blobId, error } = await walrusService.createUploadTask(
-        encryptedData,
+        encodedData,
         deletable,
         epochs
       );
@@ -147,7 +136,7 @@ export const encryptAndUploadMemoryAction: Action = {
       {
         name: '{{name1}}',
         content: {
-          text: 'upload memory 0x123abc',
+          text: 'upload memory',
         },
       },
       {
@@ -162,7 +151,7 @@ export const encryptAndUploadMemoryAction: Action = {
       {
         name: '{{name1}}',
         content: {
-          text: 'upload memory {"0x123abc", "myTable", true, 5}',
+          text: 'upload memory {"myTable", true, 5}',
         },
       },
       {
@@ -177,7 +166,7 @@ export const encryptAndUploadMemoryAction: Action = {
       {
         name: '{{name1}}',
         content: {
-          text: 'upload this conversation 0x123abc table myTable',
+          text: 'upload this conversation table myTable',
         },
       },
       {

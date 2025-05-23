@@ -16,9 +16,8 @@ import path from 'path';
 import crypto from 'crypto';
 import { DOWNLOAD_DIR } from '../index';
 import { WalrusService } from 'src/WalrusService';
-import { SealService } from 'src/SealService';
 
-const downloadAndDecryptFileTemplate = `# Task: Download and Decrypt File
+const downloadFileTemplate = `# Task: Download File
 
 # Recent Messages:
 {{recentMessages}}
@@ -26,27 +25,25 @@ const downloadAndDecryptFileTemplate = `# Task: Download and Decrypt File
 # Instructions:
 Extract the following fields from the user’s last message:
 - blobId: string (required)
-- allowlistId: string (required)
 - fileName: string (required)
 
 # Examples
-User: download file blob abc123 allowlist 0xdef456 fileName myfile.txt
-Assistant: {"blobId":"abc123","allowlistId":"0xdef456","fileName":"myfile.txt"}
+User: download file blob abc123 fileName myfile.txt
+Assistant: {"blobId":"abc123","fileName":"myfile.txt"}
 
-User: decrypt file feedbeef using allowlist 0xdeadbeef fileName report.pdf
-Assistant: {"blobId":"feedbeef","allowlistId":"0xdeadbeef","fileName":"report.pdf"}
+User: decrypt file feedbeef using fileName report.pdf
+Assistant: {"blobId":"feedbeef","fileName":"report.pdf"}
 
-User: download file blob 111aaa with allowlist 0x222bbb fileName image.png
-Assistant: {"blobId":"111aaa","allowlistId":"0x222bbb","fileName":"image.png"}
+User: download file blob 111aaa with fileName image.png
+Assistant: {"blobId":"111aaa","fileName":"image.png"}
 
-User: download file {blobId: "999fff", allowlistId: "0x888eee", fileName: "data.xlsx"}
-Assistant: {"blobId":"999fff","allowlistId":"0x888eee","fileName":"data.xlsx"}
+User: download file {blobId: "999fff", fileName: "data.xlsx"}
+Assistant: {"blobId":"999fff","fileName":"data.xlsx"}
 
 Response format should be formatted in a valid JSON block like this:
 \`\`\`json
 {
   "blobId": string,
-  "allowlistId": string,
   "fileName": string
 }
 \`\`\`
@@ -54,10 +51,10 @@ Response format should be formatted in a valid JSON block like this:
 Your response should include the valid JSON block and nothing else.
 `;
 
-export const downloadAndDecryptFileAction: Action = {
-  name: 'DOWNLOAD_AND_DECRYPT_FILE',
-  similes: ['DOWNLOAD_FILE'],
-  description: 'Download and Decrypt File from Walrus Seal',
+export const downloadFileAction: Action = {
+  name: 'DOWNLOAD_FILE',
+  similes: [],
+  description: 'Download from Walrus',
 
   validate: async (
     _runtime: IAgentRuntime,
@@ -77,11 +74,11 @@ export const downloadAndDecryptFileAction: Action = {
     _responses: Memory[]
   ) => {
     try {
-      logger.info('Handling DOWNLOAD_AND_DECRYPT_FILE action');
+      logger.info('Handling DOWNLOAD_FILE action');
 
       const prompt = composePromptFromState({
         state,
-        template: downloadAndDecryptFileTemplate,
+        template: downloadFileTemplate,
       });
       const response = await runtime.useModel(ModelType.TEXT_SMALL, {
         prompt: prompt,
@@ -98,20 +95,9 @@ export const downloadAndDecryptFileAction: Action = {
       );
       logger.info(`download file success: ${success}`);
 
-      const sealService = new SealService(runtime);
-      const {
-        success: decryptSuccess,
-        data: decryptedData,
-        error: decryptError,
-      } = await sealService.createAllowlistDecryptTask(
-        data,
-        responseContentObj.allowlistId
-      );
-      logger.info(`decrypt file success: ${decryptSuccess}`);
-
       // if success, create a download link
       let downloadLink = '';
-      if (decryptSuccess && decryptedData) {
+      if (success && data) {
         // create a unique token for the download link using UUID v4
         const downloadToken = crypto.randomUUID();
 
@@ -132,7 +118,7 @@ export const downloadAndDecryptFileAction: Action = {
         logger.info(`Saving downloaded file to: ${filePath}`);
 
         // Write the decrypted data to disk
-        fs.writeFileSync(filePath, Buffer.from(decryptedData));
+        fs.writeFileSync(filePath, Buffer.from(data));
 
         // Only save metadata in memory
         if (!global.downloadMetadata) {
@@ -156,13 +142,13 @@ export const downloadAndDecryptFileAction: Action = {
         text: success
           ? `File downloaded successfully. [Download File](${downloadLink})`
           : `Failed to download file: ${error}`,
-        actions: ['DOWNLOAD_AND_DECRYPT_FILE'],
+        actions: ['DOWNLOAD_FILE'],
       };
 
       await callback(responseContent);
       return responseContent;
     } catch (error) {
-      logger.error(`Error in DOWNLOAD_AND_DECRYPT_FILE action: ${error}`);
+      logger.error(`Error in DOWNLOAD_FILE action: ${error}`);
       throw error;
     }
   },
@@ -172,14 +158,14 @@ export const downloadAndDecryptFileAction: Action = {
       {
         name: '{{name1}}',
         content: {
-          text: 'download file blob abc123 allowlist 0xdef456 fileName myfile.txt',
+          text: 'download file blob abc123 fileName myfile.txt',
         },
       },
       {
         name: '{{name2}}',
         content: {
           text: 'file downloaded successfully!',
-          actions: ['DOWNLOAD_AND_DECRYPT_FILE'],
+          actions: ['DOWNLOAD_FILE'],
         },
       },
     ],
@@ -187,14 +173,14 @@ export const downloadAndDecryptFileAction: Action = {
       {
         name: '{{name1}}',
         content: {
-          text: 'decrypt file feedbeef using allowlist 0xdeadbeef fileName report.pdf',
+          text: 'decrypt file feedbeef using fileName report.pdf',
         },
       },
       {
         name: '{{name2}}',
         content: {
           text: 'file downloaded successfully!',
-          actions: ['DOWNLOAD_AND_DECRYPT_FILE'],
+          actions: ['DOWNLOAD_FILE'],
         },
       },
     ],
@@ -202,14 +188,14 @@ export const downloadAndDecryptFileAction: Action = {
       {
         name: '{{name1}}',
         content: {
-          text: 'download file {blobId: "999fff", allowlistId: "0x888eee", fileName: "data.xlsx"}',
+          text: 'download file {blobId: "999fff", fileName: "data.xlsx"}',
         },
       },
       {
         name: '{{name2}}',
         content: {
           text: 'file downloaded successfully!',
-          actions: ['DOWNLOAD_AND_DECRYPT_FILE'],
+          actions: ['DOWNLOAD_FILE'],
         },
       },
     ],

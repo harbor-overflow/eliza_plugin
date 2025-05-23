@@ -11,45 +11,42 @@ import {
   parseJSONObjectFromText,
 } from '@elizaos/core';
 import fs from 'fs';
-import { SealService } from 'src/SealService';
 import { WalrusService } from 'src/WalrusService';
 
-const encryptAndUploadFileTemplate = `# Task: Encrypt and Upload File
+const uploadFileTemplate = `# Task: Upload File
 
 # Recent Messages:
 {{recentMessages}}
 
 # Instructions:
 Extract the following fields from the user’s last message:
-- allowlistId: string (required)
 - deletable: boolean or null
 - epochs: number or null
 - fileId: string (required)
 
 # Examples
-User: upload file 0x123abc  fileId: ba057d8e-9b45-4c42-b2b5-f5177ccc690c
-Assistant: {"fileId":"ba057d8e-9b45-4c42-b2b5-f5177ccc690c","allowlistId":"0x123abc","deletable":null,"epochs":null}
+User: upload file fileId: ba057d8e-9b45-4c42-b2b5-f5177ccc690c
+Assistant: {"fileId":"ba057d8e-9b45-4c42-b2b5-f5177ccc690c","deletable":null,"epochs":null}
 
-User: upload this file 0x123abc  fileId: 0x123abc
-Assistant: {"fileId":"0x123abc","allowlistId":"0x123abc","deletable":null,"epochs":null}
+User: upload this file fileId: 0x123abc
+Assistant: {"fileId":"0x123abc","deletable":null,"epochs":null}
 
-User: upload file to 0x123abc with deletable fileId: someId
-Assistant: {"fileId":"someId","allowlistId":"0x123abc",""deletable":true,"epochs":null}
+User: upload file with deletable fileId: someId
+Assistant: {"fileId":"someId",""deletable":true,"epochs":null}
 
-User: upload file 0x123abc with not deletable fileId: a5ef6dd4-0b42-43b5-a181-0a140585f7a2
-Assistant: {"fileId":"a5ef6dd4-0b42-43b5-a181-0a140585f7a2","allowlistId":"0x123abc",""deletable":false,"epochs":null}
+User: upload file with not deletable fileId: a5ef6dd4-0b42-43b5-a181-0a140585f7a2
+Assistant: {"fileId":"a5ef6dd4-0b42-43b5-a181-0a140585f7a2",""deletable":false,"epochs":null}
 
-User: upload this file 0x123abc with 5 epochs fileId: a5ef6dd4-0b42-43b5-a181-0a140585f7a2
-Assistant: {"fileId":"a5ef6dd4-0b42-43b5-a181-0a140585f7a2","allowlistId":"0x123abc","deletable":null,"epochs":5}
+User: upload this file with 5 epochs fileId: a5ef6dd4-0b42-43b5-a181-0a140585f7a2
+Assistant: {"fileId":"a5ef6dd4-0b42-43b5-a181-0a140585f7a2","deletable":null,"epochs":5}
 
-User: upload file {"0x123abc", true, 5} fileId: a5ef6dd4-0b42-43b5-a181-0a140585f7a2
-Assistant: {"fileId":"a5ef6dd4-0b42-43b5-a181-0a140585f7a2","allowlistId":"0x123abc","deletable":true,"epochs":5}
+User: upload file {true, 5} fileId: a5ef6dd4-0b42-43b5-a181-0a140585f7a2
+Assistant: {"fileId":"a5ef6dd4-0b42-43b5-a181-0a140585f7a2","deletable":true,"epochs":5}
 
 Response format should be formatted in a valid JSON block like this:
 \`\`\`json
 {
   "fileId": string,
-  "allowlistId": string,
   "deletable": boolean | null,
   "epochs": number | null
 }
@@ -58,10 +55,10 @@ Response format should be formatted in a valid JSON block like this:
 Your response should include the valid JSON block and nothing else.
 `;
 
-export const encryptAndUploadFileAction: Action = {
-  name: 'ENCRYPT_AND_UPLOAD_FILE',
-  similes: ['UPLOAD_FILE'],
-  description: 'Get file and encrypt with seal and upload them to walrus',
+export const uploadFileAction: Action = {
+  name: 'UPLOAD_FILE',
+  similes: ['UPLOAD_PUBLIC_FILE'],
+  description: 'Get file and upload them to walrus',
 
   validate: async (
     _runtime: IAgentRuntime,
@@ -81,11 +78,11 @@ export const encryptAndUploadFileAction: Action = {
     _responses: Memory[]
   ) => {
     try {
-      logger.info('Handling ENCRYPT_AND_UPLOAD_FILE action');
+      logger.info('Handling UPLOAD_FILE action');
 
       const prompt = composePromptFromState({
         state,
-        template: encryptAndUploadFileTemplate,
+        template: uploadFileTemplate,
       });
       const response = await runtime.useModel(ModelType.TEXT_SMALL, {
         prompt: prompt,
@@ -127,17 +124,9 @@ export const encryptAndUploadFileAction: Action = {
       const fileData = fs.readFileSync(fileInfo.filePath);
       logger.info(`File data read successfully from ${fileInfo.filePath}`);
 
-      logger.info(`Encrypting file data with Seal...`);
-      const sealService = new SealService(runtime);
-      const encryptedData = await sealService.createAllowlistEncryptTask(
-        fileData,
-        responseContentObj.allowlistId
-      );
-      logger.info(`File data encrypted successfully`);
-
       const walrusService = new WalrusService(runtime);
       const { success, blobId, error } = await walrusService.createUploadTask(
-        encryptedData,
+        fileData,
         deletable,
         epochs
       );
@@ -155,13 +144,13 @@ export const encryptAndUploadFileAction: Action = {
         text: success
           ? `File uploaded successfully!\nblobId: ${blobId}`
           : `Failed to upload file: ${error}`,
-        actions: ['ENCRYPT_AND_UPLOAD_FILE'],
+        actions: ['UPLOAD_FILE'],
       };
 
       await callback(responseContent);
       return responseContent;
     } catch (error) {
-      logger.error(`Error in ENCRYPT_AND_UPLOAD_FILE action: ${error}`);
+      logger.error(`Error in UPLOAD_FILE action: ${error}`);
       throw error;
     }
   },
@@ -171,14 +160,14 @@ export const encryptAndUploadFileAction: Action = {
       {
         name: '{{name1}}',
         content: {
-          text: 'upload file 0x123abc fileName: myfile.txt',
+          text: 'upload file fileName: myfile.txt',
         },
       },
       {
         name: '{{name2}}',
         content: {
           text: 'file uploaded successfully!\nblobId: ...',
-          actions: ['ENCRYPT_AND_UPLOAD_FILE'],
+          actions: ['UPLOAD_FILE'],
         },
       },
     ],
@@ -186,14 +175,14 @@ export const encryptAndUploadFileAction: Action = {
       {
         name: '{{name1}}',
         content: {
-          text: 'upload file {"0x123abc", true, 5} fileName: myfile.png',
+          text: 'upload file {true, 5} fileName: myfile.png',
         },
       },
       {
         name: '{{name2}}',
         content: {
           text: 'file uploaded successfully!\nblobId: ...',
-          actions: ['ENCRYPT_AND_UPLOAD_FILE'],
+          actions: ['UPLOAD_FILE'],
         },
       },
     ],
@@ -201,14 +190,14 @@ export const encryptAndUploadFileAction: Action = {
       {
         name: '{{name1}}',
         content: {
-          text: 'upload this file 0x123abc with not deletable fileName: myfile.png',
+          text: 'upload this file with not deletable fileName: myfile.png',
         },
       },
       {
         name: '{{name2}}',
         content: {
           text: 'file uploaded successfully!\nblobId: ...',
-          actions: ['ENCRYPT_AND_UPLOAD_FILE'],
+          actions: ['UPLOAD_FILE'],
         },
       },
     ],

@@ -1,13 +1,7 @@
 import type { Plugin } from '@elizaos/core';
 import { logger } from '@elizaos/core';
 import { z } from 'zod';
-import { encryptAndUploadMemoryAction } from './actions/encryptAndUploadMemory';
-import { createAllowlistAction } from './actions/createAllowlist';
-import { addAllowlistAction } from './actions/addAllowlist';
-import { downloadAndDecryptMemoryAction } from './actions/downloadAndDecryptMemory';
-import { encryptAndUploadFileAction } from './actions/encryptAndUploadFile';
 import multer from 'multer';
-import { downloadAndDecryptFileAction } from './actions/downloadAndDecryptFile';
 import { mintAccessNFTAction } from './actions/mintAccessNFT';
 import { createCollectionAction } from './actions/createCollection';
 import { listCollectionsAction } from './actions/listCollections';
@@ -21,6 +15,10 @@ import { SealService } from './SealService';
 import { WalrusService } from './WalrusService';
 import { uploadMemoryWithNFTAction } from './actions/uploadMemoryWithNFT';
 import { downloadWithNFTAction } from './actions/downloadWithNFT';
+import { downloadFileAction } from './actions/downloadFile';
+import { downloadMemoryAction } from './actions/downloadMemory';
+import { uploadFileAction } from './actions/uploadFile';
+import { uploadMemoryAction } from './actions/uploadMemory';
 
 const MAX_CHUNK_SIZE = 10 * 1024 * 1024;
 const UPLOAD_DIR = path.join(process.cwd(), 'data/uploads');
@@ -617,12 +615,10 @@ export const harborPlugin: Plugin = {
   events: {},
   services: [SuiService, WalrusService, SealService],
   actions: [
-    encryptAndUploadMemoryAction,
-    encryptAndUploadFileAction,
-    createAllowlistAction,
-    addAllowlistAction,
-    downloadAndDecryptMemoryAction,
-    downloadAndDecryptFileAction,
+    uploadMemoryAction,
+    uploadFileAction,
+    downloadMemoryAction,
+    downloadFileAction,
     mintAccessNFTAction,
     createCollectionAction,
     listCollectionsAction,

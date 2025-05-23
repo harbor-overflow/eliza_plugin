@@ -24,7 +24,7 @@ Extract the following fields from the user’s last message:
 - name: string or null
 - deletable: boolean or null
 - epochs: number or null
-- maxSupply: boolean or null
+- maxSupply: number or null
 - mintPrice: number or null
 
 # Examples

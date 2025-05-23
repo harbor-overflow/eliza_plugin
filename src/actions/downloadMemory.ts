@@ -10,11 +10,10 @@ import {
   ModelType,
   parseJSONObjectFromText,
 } from '@elizaos/core';
-import { SealService } from 'src/SealService';
 import { isValidMemory } from 'src/types';
 import { WalrusService } from 'src/WalrusService';
 
-const downloadAndDecryptMemoryTemplate = `# Task: Download and Decrypt Memory
+const downloadMemoryTemplate = `# Task: Download and Decrypt Memory
 
 # Recent Messages:
 {{recentMessages}}
@@ -22,40 +21,31 @@ const downloadAndDecryptMemoryTemplate = `# Task: Download and Decrypt Memory
 # Instructions:
 Extract the following fields from the user’s last message:
 - blobId: string (required)
-- allowlistId: string (required)
 
 # Examples
-User: download memory blob abc123 allowlist 0xdef456  
-Assistant: {"blobId":"0xabc123","allowlistId":"0xdef456"}
+User: download memory blob abc123  
+Assistant: {"blobId":"0xabc123"}
 
-User: decrypt memory feedbeef using allowlist 0xdeadbeef  
-Assistant: {"blobId":"feedbeef","allowlistId":"0xdeadbeef"}
+User: decrypt memory feedbeef  
+Assistant: {"blobId":"feedbeef"}
 
-User: download memory blob 111aaa with allowlist 0x222bbb  
-Assistant: {"blobId":"111aaa","allowlistId":"0x222bbb"}
-
-User: download memory {blobId: "999fff", allowlistId: "0x888eee"}  
-Assistant: {"blobId":"999fff","allowlistId":"0x888eee"}
+User: download memory {blobId: "999fff"}
+Assistant: {"blobId":"999fff"}
 
 Response format should be formatted in a valid JSON block like this:
 \`\`\`json
 {
-  "blobId": string,
-  "allowlistId": string
+  "blobId": string
 }
 \`\`\`
 
 Your response should include the valid JSON block and nothing else.
 `;
 
-export const downloadAndDecryptMemoryAction: Action = {
-  name: 'DOWNLOAD_AND_DECRYPT_MEMORY',
-  similes: [
-    'DOWNLOAD_MEMORY',
-    'DOWNLOAD_MEMORIES',
-    'DECRYPT_AND_DOWNLOAD_MEMORIES',
-  ],
-  description: 'Download and Decrypt Memory from Walrus Seal',
+export const downloadMemoryAction: Action = {
+  name: 'DOWNLOAD_MEMORY',
+  similes: ['DOWNLOAD_MEMORIES'],
+  description: 'Download Memory from Walrus',
 
   validate: async (
     _runtime: IAgentRuntime,
@@ -75,11 +65,11 @@ export const downloadAndDecryptMemoryAction: Action = {
     _responses: Memory[]
   ) => {
     try {
-      logger.info('Handling DOWNLOAD_AND_DECRYPT_MEMORY action');
+      logger.info('Handling DOWNLOAD_MEMORY action');
 
       const prompt = composePromptFromState({
         state,
-        template: downloadAndDecryptMemoryTemplate,
+        template: downloadMemoryTemplate,
       });
       const response = await runtime.useModel(ModelType.TEXT_SMALL, {
         prompt: prompt,
@@ -93,19 +83,8 @@ export const downloadAndDecryptMemoryAction: Action = {
       );
       logger.info(`download file success: ${success}`);
 
-      const sealService = new SealService(runtime);
-      const {
-        success: decryptSuccess,
-        data: decryptedData,
-        error: decryptError,
-      } = await sealService.createAllowlistDecryptTask(
-        data,
-        responseContentObj.allowlistId
-      );
-      logger.info(`decrypt file success: ${decryptSuccess}`);
-
-      if (decryptSuccess) {
-        const decodedData = new TextDecoder().decode(decryptedData);
+      if (success) {
+        const decodedData = new TextDecoder().decode(data);
         const parsedData = JSON.parse(decodedData);
         const validMemories = parsedData.filter(isValidMemory);
 
@@ -129,13 +108,13 @@ export const downloadAndDecryptMemoryAction: Action = {
         text: success
           ? `memory downloaded successfully!`
           : `Failed to add memory: ${error}`,
-        actions: ['DOWNLOAD_AND_DECRYPT_MEMORY'],
+        actions: ['DOWNLOAD_MEMORY'],
       };
 
       await callback(responseContent);
       return responseContent;
     } catch (error) {
-      logger.error(`Error in DOWNLOAD_AND_DECRYPT_MEMORY action: ${error}`);
+      logger.error(`Error in DOWNLOAD_MEMORY action: ${error}`);
       throw error;
     }
   },
@@ -145,14 +124,14 @@ export const downloadAndDecryptMemoryAction: Action = {
       {
         name: '{{name1}}',
         content: {
-          text: 'download memory blob abc123 allowlist 0xdef456',
+          text: 'download memory blob abc123',
         },
       },
       {
         name: '{{name2}}',
         content: {
           text: 'memory downloaded successfully!',
-          actions: ['DOWNLOAD_AND_DECRYPT_MEMORY'],
+          actions: ['DOWNLOAD_MEMORY'],
         },
       },
     ],
@@ -160,14 +139,14 @@ export const downloadAndDecryptMemoryAction: Action = {
       {
         name: '{{name1}}',
         content: {
-          text: 'decrypt memory feedbeef using allowlist 0xdeadbeef',
+          text: 'decrypt memory feedbeef',
         },
       },
       {
         name: '{{name2}}',
         content: {
           text: 'memory downloaded successfully!',
-          actions: ['DOWNLOAD_AND_DECRYPT_MEMORY'],
+          actions: ['DOWNLOAD_MEMORY'],
         },
       },
     ],
@@ -175,14 +154,14 @@ export const downloadAndDecryptMemoryAction: Action = {
       {
         name: '{{name1}}',
         content: {
-          text: 'download memory {blobId: "999fff", allowlistId: "0x888eee"}',
+          text: 'download memory {blobId: "999fff"}',
         },
       },
       {
         name: '{{name2}}',
         content: {
           text: 'memory downloaded successfully!',
-          actions: ['DOWNLOAD_AND_DECRYPT_MEMORY'],
+          actions: ['DOWNLOAD_MEMORY'],
         },
       },
     ],
