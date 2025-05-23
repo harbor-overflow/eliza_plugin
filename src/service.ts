@@ -611,62 +611,6 @@ export class WalrusSealService extends Service {
     }
   }
 
-  async mintFileNFTTask(collectionId: string) {
-    try {
-      const suiClient = new SuiClient({ url: getFullnodeUrl('testnet') });
-      const privateKey = process.env.SUI_PRIVATE_KEY;
-      if (!privateKey) {
-        throw new Error('SUI_PRIVATE_KEY environment variable is not set');
-      }
-      const keypair = Ed25519Keypair.fromSecretKey(privateKey);
-
-      // 트랜잭션 생성
-      const tx = new Transaction();
-
-      // 민팅 비용 가져오기
-      // const mintPrice = await ...
-
-      // SUI 코인 생성
-      // const [paymentCoin] = tx.splitCoins(tx.gas, [tx.pure.u64(mintPrice)]);
-      const [paymentCoin] = tx.splitCoins(tx.gas, [tx.pure.u64(0)]);
-
-      // file_nft::mint_nft 함수 호출
-      tx.moveCall({
-        target: `${FILE_NFT_PACKAGE_ID}::file_nft::mint_nft`,
-        arguments: [tx.object(collectionId), paymentCoin],
-      });
-
-      // 트랜잭션 실행
-      const result = await suiClient.signAndExecuteTransaction({
-        signer: keypair,
-        transaction: tx,
-        options: {
-          showEffects: true,
-          showObjectChanges: true,
-        },
-      });
-
-      // NFT objectId 추출
-      const nftObj = result.objectChanges?.find(
-        (change) =>
-          change.type === 'created' &&
-          change.objectType === `${FILE_NFT_PACKAGE_ID}::file_nft::AccessNFT`
-      );
-
-      return {
-        success: true,
-        nftId: nftObj && 'objectId' in nftObj ? nftObj.objectId : undefined,
-        transactionDigest: result.digest,
-      };
-    } catch (error) {
-      logger.error(`Failed to mint NFT: ${error}`);
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : String(error),
-      };
-    }
-  }
-
   async createCollectionTask(
     name: string,
     maxSupply: number,
@@ -689,7 +633,7 @@ export class WalrusSealService extends Service {
         arguments: [
           tx.pure.string(name),
           tx.pure.u64(maxSupply),
-          tx.pure.u64(mintPrice),
+          tx.pure.u64(mintPrice * 1000000000), // SUI to lamports
         ],
       });
 

@@ -17,6 +17,7 @@ import { listMyNFTsAction } from './actions/listMyNFTs';
 
 import path from 'path';
 import fs from 'fs';
+import { uploadFileWithNFTAction } from './actions/uploadFileWithNFT';
 
 
 const MAX_CHUNK_SIZE = 10 * 1024 * 1024; // 5MB 청크 사이즈 (멀터 한계보다 작게)
@@ -445,6 +446,7 @@ export const harborPlugin: Plugin = {
               createdAt: Date.now(),
               expiresAt: Date.now() + 24 * 60 * 60 * 1000, // 24시간 후 만료
             });
+            console.log('global.fileInfo: ', global.fileInfo);
 
             return res.status(200).json({
               success: true,
@@ -636,6 +638,7 @@ export const harborPlugin: Plugin = {
     createCollectionAction,
     listCollectionsAction,
     listMyNFTsAction,
+    uploadFileWithNFTAction,
   ],
   providers: [],
 };
