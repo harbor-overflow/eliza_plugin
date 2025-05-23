@@ -3,7 +3,6 @@ import { logger } from '@elizaos/core';
 import { z } from 'zod';
 import multer from 'multer';
 import { mintAccessNFTAction } from './actions/mintAccessNFT';
-import { createCollectionAction } from './actions/createCollection';
 import { listCollectionsAction } from './actions/listCollections';
 import { listMyNFTsAction } from './actions/listMyNFTs';
 
@@ -620,7 +619,6 @@ export const harborPlugin: Plugin = {
     downloadMemoryAction,
     downloadFileAction,
     mintAccessNFTAction,
-    createCollectionAction,
     listCollectionsAction,
     listMyNFTsAction,
     uploadFileWithNFTAction,
