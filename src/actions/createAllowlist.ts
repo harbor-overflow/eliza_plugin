@@ -10,7 +10,7 @@ import {
   parseJSONObjectFromText,
   composePromptFromState,
 } from '@elizaos/core';
-import { WalrusSealService } from 'src/service';
+import { SuiService } from 'src/SuiService';
 
 const createAllowlistTemplate = `# Task: Create allowlist entry for named {{name}}
 
@@ -71,12 +71,10 @@ export const createAllowlistAction: Action = {
       const responseContentObj = parseJSONObjectFromText(response);
       logger.info(`responseContentObj.name: ${responseContentObj.name}`);
 
-      const memoryWalrusSealService = new WalrusSealService(runtime);
+      const suiService = new SuiService(runtime);
 
       const { success, allowlistId, capId, transactionDigest, error } =
-        await memoryWalrusSealService.createAllowlistTask(
-          responseContentObj.name
-        );
+        await suiService.createAllowlistTask(responseContentObj.name);
       const responseContent: Content = {
         text: success
           ? `Allowlist entry created successfully!\ntxId: ${transactionDigest}\nallowlistId: ${allowlistId}\ncapId: ${capId}\n\nhttps://testnet.suivision.xyz/txblock/${transactionDigest}`

@@ -10,7 +10,9 @@ import {
   ModelType,
   parseJSONObjectFromText,
 } from '@elizaos/core';
+import { SealService } from 'src/sealService';
 import { WalrusSealService } from 'src/service';
+import { WalrusService } from 'src/WalrusService';
 
 const downloadAndDecryptMemoryTemplate = `# Task: Download and Decrypt Memory
 
@@ -94,15 +96,26 @@ export const downloadAndDecryptMemoryAction: Action = {
       });
       const responseContentObj = parseJSONObjectFromText(response);
       console.log('responseContentObj', responseContentObj);
+      
+      const walrusService = new WalrusService(runtime);
+      const { success, data, error } = await walrusService.createDownloadTask(
+        responseContentObj.blobId
+      );
+      logger.info(`download file success: ${success}`);
 
-      const memoryWalrusSealService = new WalrusSealService(runtime);
-      const { success, data, error } =
-        await memoryWalrusSealService.createDownloadAndDecryptTask(
-          responseContentObj.blobId,
-          responseContentObj.allowlistId
-        );
-      if (success) {
-        const decodedData = new TextDecoder().decode(data);
+      const sealService = new SealService(runtime);
+      const {
+        success: decryptSuccess,
+        data: decryptedData,
+        error: decryptError,
+      } = await sealService.createAllowlistDecryptTask(
+        data,
+        responseContentObj.allowlistId
+      );
+      logger.info(`decrypt file success: ${decryptSuccess}`);
+
+      if (decryptSuccess) {
+        const decodedData = new TextDecoder().decode(decryptedData);
         const parsedData = JSON.parse(decodedData);
         const validMemories = parsedData.filter(isValidMemory);
 

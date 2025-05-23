@@ -10,7 +10,9 @@ import {
   ModelType,
   parseJSONObjectFromText,
 } from '@elizaos/core';
+import { SealService } from 'src/sealService';
 import { WalrusSealService } from 'src/service';
+import { WalrusService } from 'src/WalrusService';
 
 const encryptAndUploadMemoryTemplate = `# Task: Encrypt and Upload Memory
 
@@ -109,14 +111,21 @@ export const encryptAndUploadMemoryAction: Action = {
       const jsonData = JSON.stringify(memories, null, 0);
       const dataToEncrypt = new TextEncoder().encode(jsonData);
 
-      const memoryWalrusSealService = new WalrusSealService(runtime);
-      const { success, blobId, error } =
-        await memoryWalrusSealService.createEncryptAndUploadTask(
-          dataToEncrypt,
-          responseContentObj.allowlistId,
-          deletable,
-          epochs
-        );
+      logger.info(`Encrypting file data with Seal...`);
+      const sealService = new SealService(runtime);
+      const encryptedData = await sealService.createAllowlistEncryptTask(
+        dataToEncrypt,
+        responseContentObj.allowlistId
+      );
+      logger.info(`File data encrypted successfully`);
+
+      const walrusService = new WalrusService(runtime);
+      const { success, blobId, error } = await walrusService.createUploadTask(
+        encryptedData,
+        deletable,
+        epochs
+      );
+      logger.info(`upload file success: ${success}`);
       logger.info(`upload memory success: ${success}`);
 
       const responseContent: Content = {

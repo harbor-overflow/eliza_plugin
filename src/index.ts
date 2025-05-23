@@ -6,7 +6,6 @@ import { encryptAndUploadMemoryAction } from './actions/encryptAndUploadMemory';
 import { createAllowlistAction } from './actions/createAllowlist';
 import { addAllowlistAction } from './actions/addAllowlist';
 import { downloadAndDecryptMemoryAction } from './actions/downloadAndDecryptMemory';
-import { createServiceAction } from './actions/createService';
 import { encryptAndUploadFileAction } from './actions/encryptAndUploadFile';
 import multer from 'multer';
 import { downloadAndDecryptFileAction } from './actions/downloadAndDecryptFile';
@@ -18,7 +17,8 @@ import { listMyNFTsAction } from './actions/listMyNFTs';
 import path from 'path';
 import fs from 'fs';
 import { uploadFileWithNFTAction } from './actions/uploadFileWithNFT';
-
+import { SuiService } from './SuiService';
+import { SealService } from './sealService';
 
 const MAX_CHUNK_SIZE = 10 * 1024 * 1024; // 5MB 청크 사이즈 (멀터 한계보다 작게)
 const UPLOAD_DIR = path.join(process.cwd(), 'data/uploads');
@@ -625,7 +625,7 @@ export const harborPlugin: Plugin = {
     },
   ],
   events: {},
-  services: [WalrusSealService],
+  services: [SuiService, WalrusSealService, SealService],
   actions: [
     encryptAndUploadMemoryAction,
     encryptAndUploadFileAction,
@@ -633,7 +633,6 @@ export const harborPlugin: Plugin = {
     addAllowlistAction,
     downloadAndDecryptMemoryAction,
     downloadAndDecryptFileAction,
-    createServiceAction,
     mintAccessNFTAction,
     createCollectionAction,
     listCollectionsAction,

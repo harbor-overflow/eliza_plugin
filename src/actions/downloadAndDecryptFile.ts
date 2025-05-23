@@ -16,6 +16,8 @@ import fs from 'fs';
 import path from 'path';
 import crypto from 'crypto';
 import { DOWNLOAD_DIR } from '../index';
+import { WalrusService } from 'src/WalrusService';
+import { SealService } from 'src/sealService';
 
 const downloadAndDecryptFileTemplate = `# Task: Download and Decrypt File
 
@@ -52,7 +54,6 @@ Response format should be formatted in a valid JSON block like this:
 
 Your response should include the valid JSON block and nothing else.
 `;
-
 
 export const downloadAndDecryptFileAction: Action = {
   name: 'DOWNLOAD_AND_DECRYPT_FILE',
@@ -92,40 +93,53 @@ export const downloadAndDecryptFileAction: Action = {
       // check fileName
       const fileName = responseContentObj.fileName || 'downloaded-file';
 
-      const memoryWalrusSealService = new WalrusSealService(runtime);
-      const { success, data, error } =
-        await memoryWalrusSealService.createDownloadAndDecryptTask(
-          responseContentObj.blobId,
-          responseContentObj.allowlistId
-        );
+      const walrusService = new WalrusService(runtime);
+      const { success, data, error } = await walrusService.createDownloadTask(
+        responseContentObj.blobId
+      );
       logger.info(`download file success: ${success}`);
+
+      const sealService = new SealService(runtime);
+      const {
+        success: decryptSuccess,
+        data: decryptedData,
+        error: decryptError,
+      } = await sealService.createAllowlistDecryptTask(
+        data,
+        responseContentObj.allowlistId
+      );
+      logger.info(`decrypt file success: ${decryptSuccess}`);
 
       // if success, create a download link
       let downloadLink = '';
-      if (success && data) {
+      if (decryptSuccess && decryptedData) {
         // create a unique token for the download link using UUID v4
         const downloadToken = crypto.randomUUID();
-        
+
         // get mime type from file extension
-        const contentType = mime.getType(fileName.split('.').pop()) || 'application/octet-stream';
-        
+        const contentType =
+          mime.getType(fileName.split('.').pop()) || 'application/octet-stream';
+
         // Ensure download directory exists
         if (!fs.existsSync(DOWNLOAD_DIR)) {
           fs.mkdirSync(DOWNLOAD_DIR, { recursive: true });
         }
-        
+
         // Save file to disk instead of memory
-        const filePath = path.join(DOWNLOAD_DIR, `${downloadToken}_${fileName}`);
+        const filePath = path.join(
+          DOWNLOAD_DIR,
+          `${downloadToken}_${fileName}`
+        );
         logger.info(`Saving downloaded file to: ${filePath}`);
-        
+
         // Write the decrypted data to disk
-        fs.writeFileSync(filePath, Buffer.from(data));
-        
+        fs.writeFileSync(filePath, Buffer.from(decryptedData));
+
         // Only save metadata in memory
         if (!global.downloadMetadata) {
           global.downloadMetadata = new Map();
         }
-        
+
         global.downloadMetadata.set(downloadToken, {
           filename: fileName,
           contentType: contentType,
@@ -133,7 +147,7 @@ export const downloadAndDecryptFileAction: Action = {
           createdAt: Date.now(),
           expiresAt: Date.now() + 24 * 60 * 60 * 1000, // 24시간 후 만료
         });
-        
+
         // create download link
         const baseUrl = process.env.BASE_URL || 'http://localhost:3000';
         downloadLink = `${baseUrl}/api/download?token=${downloadToken}`;

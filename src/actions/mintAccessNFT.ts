@@ -10,7 +10,7 @@ import {
   ModelType,
   parseJSONObjectFromText,
 } from '@elizaos/core';
-import { WalrusSealService } from '../service';
+import { SuiService } from 'src/SuiService';
 
 const mintAccessNFTTemplate = `# Task: Mint Access NFT
 
@@ -71,14 +71,18 @@ export const mintAccessNFTAction: Action = {
         response_format: { type: 'json_object' },
       });
       const responseContentObj = parseJSONObjectFromText(response);
-      logger.info(`Minting AccessNFT with params: ${JSON.stringify(responseContentObj)}`);
+      logger.info(
+        `Minting AccessNFT with params: ${JSON.stringify(responseContentObj)}`
+      );
 
-      const walrusSealService = new WalrusSealService(runtime);
+      const suiService = new SuiService(runtime);
 
       // First, get collection info to check mint_price
-      const collections = await walrusSealService.listCollectionsTask();
-      const collection = collections.collections.find(c => c.id === responseContentObj.collectionId);
-      
+      const collections = await suiService.listCollectionsTask();
+      const collection = collections.collections.find(
+        (c) => c.id === responseContentObj.collectionId
+      );
+
       if (!collection) {
         const responseContent: Content = {
           text: `Collection not found: ${responseContentObj.collectionId}`,
@@ -89,14 +93,15 @@ export const mintAccessNFTAction: Action = {
       }
 
       // Mint with collection's mint_price
-      const { success, nftId, transactionDigest, error } = await walrusSealService.mintAccessNFT(
-        responseContentObj.collectionId,
-        collection.mint_price
-      );
+      const { success, transactionDigest, error } =
+        await suiService.mintAccessNFT(
+          responseContentObj.collectionId,
+          collection.mint_price
+        );
 
       const responseContent: Content = {
         text: success
-          ? `Successfully minted AccessNFT!\nNFT ID: ${nftId}\nCollection ID: ${responseContentObj.collectionId}\nTransaction ID: ${transactionDigest}\nMint Price: ${collection.mint_price} SUI\n\nhttps://testnet.suivision.xyz/txblock/${transactionDigest}`
+          ? `Successfully minted AccessNFT!\nCollection ID: ${responseContentObj.collectionId}\nTransaction ID: ${transactionDigest}\nMint Price: ${collection.mint_price} SUI\n\nhttps://testnet.suivision.xyz/txblock/${transactionDigest}`
           : `Failed to mint AccessNFT: ${error}`,
         actions: ['MINT_ACCESS_NFT'],
       };
@@ -126,4 +131,4 @@ export const mintAccessNFTAction: Action = {
       },
     ],
   ],
-}; 
+};

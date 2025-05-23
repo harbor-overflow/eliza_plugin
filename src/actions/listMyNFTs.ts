@@ -7,7 +7,7 @@ import {
   logger,
   Content,
 } from '@elizaos/core';
-import { WalrusSealService } from '../service';
+import { SuiService } from 'src/SuiService';
 
 export const listMyNFTsAction: Action = {
   name: 'LIST_MY_NFTS',
@@ -33,8 +33,8 @@ export const listMyNFTsAction: Action = {
     try {
       logger.info('Handling LIST_MY_NFTS action');
 
-      const walrusSealService = new WalrusSealService(runtime);
-      const { success, nfts, error } = await walrusSealService.listMyNFTsTask();
+      const suiService = new SuiService(runtime);
+      const { success, nfts, error } = await suiService.listMyNFTsTask();
 
       if (!success || !nfts) {
         const responseContent: Content = {
@@ -46,17 +46,20 @@ export const listMyNFTsAction: Action = {
       }
 
       // Format NFTs into readable text
-      const nftsList = nfts.map(nft => {
-        return `NFT ID: ${nft.id}
+      const nftsList = nfts
+        .map((nft) => {
+          return `NFT ID: ${nft.id}
 Collection ID: ${nft.collection_id}
 Owner: ${nft.owner}
 `;
-      }).join('\n---\n');
+        })
+        .join('\n---\n');
 
       const responseContent: Content = {
-        text: nfts.length > 0
-          ? `Found ${nfts.length} AccessNFTs:\n\n${nftsList}`
-          : 'You do not own any AccessNFTs.',
+        text:
+          nfts.length > 0
+            ? `Found ${nfts.length} AccessNFTs:\n\n${nftsList}`
+            : 'You do not own any AccessNFTs.',
         actions: ['LIST_MY_NFTS'],
       };
 
@@ -85,4 +88,4 @@ Owner: ${nft.owner}
       },
     ],
   ],
-}; 
+};

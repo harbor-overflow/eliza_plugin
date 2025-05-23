@@ -10,8 +10,10 @@ import {
   ModelType,
   parseJSONObjectFromText,
 } from '@elizaos/core';
-import { WalrusSealService } from 'src/service';
 import fs from 'fs';
+import { SuiService } from 'src/SuiService';
+import { SealService } from 'src/sealService';
+import { WalrusService } from 'src/WalrusService';
 
 const uploadFileWithNFTTemplate = `# Task: Upload File with NFT
 
@@ -140,17 +142,15 @@ export const uploadFileWithNFTAction: Action = {
       const fileName = fileInfo.fileName;
       const fileSize = fileInfo.size || fileData.length;
 
-      // Create WalrusSealService instance
-      const walrusSealService = new WalrusSealService(runtime);
+      const suiService = new SuiService(runtime);
 
       // Step 1: Create NFT Collection
       logger.info(`Creating NFT collection with name: ${name}`);
-      const createCollectionResult =
-        await walrusSealService.createCollectionTask(
-          name,
-          maxSupply,
-          mintPrice
-        );
+      const createCollectionResult = await suiService.createCollectionTask(
+        name,
+        maxSupply,
+        mintPrice
+      );
 
       if (!createCollectionResult.success) {
         const responseContent: Content = {
@@ -166,7 +166,8 @@ export const uploadFileWithNFTAction: Action = {
 
       // Step 2: Encrypt the file data with Seal using the nft collection ID
       logger.info('Encrypting file data...');
-      const encryptedBytes = await walrusSealService.createFileNFTEncryptTask(
+      const sealService = new SealService(runtime);
+      const encryptedBytes = await sealService.createFileNFTEncryptTask(
         fileData,
         collectionId
       );
@@ -182,7 +183,8 @@ export const uploadFileWithNFTAction: Action = {
 
       // Step 3: Upload encrypted data to Walrus
       logger.info('Uploading encrypted data to Walrus...');
-      const uploadResult = await walrusSealService.createUploadTask(
+      const walrusService = new WalrusService(runtime);
+      const uploadResult = await walrusService.createUploadTask(
         encryptedBytes,
         deletable,
         epochs
@@ -204,7 +206,7 @@ export const uploadFileWithNFTAction: Action = {
       logger.info('Updating collection with file information...');
 
       const updateCollectionResult =
-        await walrusSealService.updateCollectionMetadataTask(
+        await suiService.updateCollectionMetadataTask(
           collectionId,
           blobId,
           fileName,

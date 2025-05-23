@@ -12,6 +12,8 @@ import {
 } from '@elizaos/core';
 import { WalrusSealService } from 'src/service';
 import fs from 'fs';
+import { SealService } from 'src/sealService';
+import { WalrusService } from 'src/WalrusService';
 
 const encryptAndUploadFileTemplate = `# Task: Encrypt and Upload File
 
@@ -96,7 +98,7 @@ export const encryptAndUploadFileAction: Action = {
       const getNullableValue = (value: any) => {
         return value === 'null' || value === null ? null : value;
       };
-      const deletable = getNullableValue(responseContentObj.deletable) ?? true;
+      const deletable = getNullableValue(responseContentObj.deletable) ?? false;
       const epochs = getNullableValue(responseContentObj.epochs) ?? 3;
       let fileId = responseContentObj.fileId;
 
@@ -124,15 +126,22 @@ export const encryptAndUploadFileAction: Action = {
 
       // Read file data from disk
       const fileData = fs.readFileSync(fileInfo.filePath);
+      logger.info(`File data read successfully from ${fileInfo.filePath}`);
 
-      const memoryWalrusSealService = new WalrusSealService(runtime);
-      const { success, blobId, error } =
-        await memoryWalrusSealService.createEncryptAndUploadTask(
-          fileData,
-          responseContentObj.allowlistId,
-          deletable,
-          epochs
-        );
+      logger.info(`Encrypting file data with Seal...`);
+      const sealService = new SealService(runtime);
+      const encryptedData = await sealService.createAllowlistEncryptTask(
+        fileData,
+        responseContentObj.allowlistId
+      );
+      logger.info(`File data encrypted successfully`);
+
+      const walrusService = new WalrusService(runtime);
+      const { success, blobId, error } = await walrusService.createUploadTask(
+        encryptedData,
+        deletable,
+        epochs
+      );
       logger.info(`upload file success: ${success}`);
 
       // delete the file from storage if upload was successful

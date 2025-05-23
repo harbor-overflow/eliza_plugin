@@ -10,7 +10,9 @@ import {
   ModelType,
   parseJSONObjectFromText,
 } from '@elizaos/core';
-import { WalrusSealService } from 'src/service';
+import { SealService } from 'src/sealService';
+import { SuiService } from 'src/SuiService';
+import { WalrusService } from 'src/WalrusService';
 
 const uploadMemoryWithNFTTemplate = `# Task: Upload Memory with NFT
 
@@ -121,17 +123,15 @@ export const uploadMemoryWithNFTAction: Action = {
       const jsonData = JSON.stringify(memories, null, 2);
       const dataToEncrypt = new TextEncoder().encode(jsonData);
 
-      // Create WalrusSealService instance
-      const walrusSealService = new WalrusSealService(runtime);
+      const suiService = new SuiService(runtime);
 
       // Step 1: Create NFT Collection
       logger.info(`Creating NFT collection with name: ${name}`);
-      const createCollectionResult =
-        await walrusSealService.createCollectionTask(
-          name,
-          maxSupply,
-          mintPrice * 1000000000 // Convert from SUI to MIST
-        );
+      const createCollectionResult = await suiService.createCollectionTask(
+        name,
+        maxSupply,
+        mintPrice * 1000000000 // Convert from SUI to MIST
+      );
 
       if (!createCollectionResult.success) {
         const responseContent: Content = {
@@ -147,7 +147,8 @@ export const uploadMemoryWithNFTAction: Action = {
 
       // Step 2: Encrypt memory data
       logger.info('Encrypting memory data...');
-      const encryptedBytes = await walrusSealService.createFileNFTEncryptTask(
+      const sealService = new SealService(runtime);
+      const encryptedBytes = await sealService.createFileNFTEncryptTask(
         dataToEncrypt,
         collectionId
       );
@@ -163,7 +164,8 @@ export const uploadMemoryWithNFTAction: Action = {
 
       // Step 3: Upload encrypted data to Walrus
       logger.info('Uploading encrypted memory data to Walrus...');
-      const uploadResult = await walrusSealService.createUploadTask(
+      const walrusService = new WalrusService(runtime);
+      const uploadResult = await walrusService.createUploadTask(
         encryptedBytes,
         deletable,
         epochs
@@ -187,12 +189,12 @@ export const uploadMemoryWithNFTAction: Action = {
       const fileName = `memory_${message.roomId ? message.roomId : runtime.agentId}_${Date.now()}.json`;
 
       const updateCollectionResult =
-        await walrusSealService.updateCollectionMetadataTask(
+        await suiService.updateCollectionMetadataTask(
           collectionId,
           blobId,
           fileName,
           dataToEncrypt.length,
-          0,
+          1,
           uploadResult.endEpoch
         );
       if (!updateCollectionResult.success) {

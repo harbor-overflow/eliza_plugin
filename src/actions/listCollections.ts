@@ -7,7 +7,7 @@ import {
   logger,
   Content,
 } from '@elizaos/core';
-import { WalrusSealService } from '../service';
+import { SuiService } from 'src/SuiService';
 
 export const listCollectionsAction: Action = {
   name: 'LIST_COLLECTIONS',
@@ -33,8 +33,9 @@ export const listCollectionsAction: Action = {
     try {
       logger.info('Handling LIST_COLLECTIONS action');
 
-      const walrusSealService = new WalrusSealService(runtime);
-      const { success, collections, error } = await walrusSealService.listCollectionsTask();
+      const suiService = new SuiService(runtime);
+      const { success, collections, error } =
+        await suiService.listCollectionsTask();
 
       if (!success || !collections) {
         const responseContent: Content = {
@@ -46,8 +47,9 @@ export const listCollectionsAction: Action = {
       }
 
       // Format collections into readable text
-      const collectionsList = collections.map(collection => {
-        return `Collection ID: ${collection.id}
+      const collectionsList = collections
+        .map((collection) => {
+          return `Collection ID: ${collection.id}
 Name: ${collection.name}
 File Name: ${collection.file_name}
 File Size: ${collection.file_size} bytes
@@ -56,12 +58,14 @@ Minted: ${collection.minted}/${collection.max_supply}
 Mint Price: ${collection.mint_price} SUI
 Owner: ${collection.owner}
 `;
-      }).join('\n---\n');
+        })
+        .join('\n---\n');
 
       const responseContent: Content = {
-        text: collections.length > 0
-          ? `Found ${collections.length} collections:\n\n${collectionsList}`
-          : 'No collections found.',
+        text:
+          collections.length > 0
+            ? `Found ${collections.length} collections:\n\n${collectionsList}`
+            : 'No collections found.',
         actions: ['LIST_COLLECTIONS'],
       };
 
@@ -90,4 +94,4 @@ Owner: ${collection.owner}
       },
     ],
   ],
-}; 
+};

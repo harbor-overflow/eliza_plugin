@@ -10,7 +10,7 @@ import {
   parseJSONObjectFromText,
   composePromptFromState,
 } from '@elizaos/core';
-import { WalrusSealService } from 'src/service';
+import { SuiService } from 'src/SuiService';
 
 const addAllowlistTemplate = `# Task: add address allowlist
 
@@ -86,10 +86,10 @@ export const addAllowlistAction: Action = {
         `allowlistId: ${responseContentObj.allowlistId}, capId: ${responseContentObj.capId}, address: ${responseContentObj.address}`
       );
 
-      const memoryWalrusSealService = new WalrusSealService(runtime);
+      const suiService = new SuiService(runtime);
 
       const { success, transactionDigest, error } =
-        await memoryWalrusSealService.addAllowlistTask(
+        await suiService.addAllowlistTask(
           responseContentObj.name,
           responseContentObj.capId,
           responseContentObj.address
