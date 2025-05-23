@@ -1,7 +1,7 @@
 {
   "name": "@yhl125/plugin-harbor",
   "description": "Plugin starter for elizaOS",
-  "version": "0.0.23",
+  "version": "0.1.0",
   "private": false,
   "type": "module",
   "main": "dist/index.js",
