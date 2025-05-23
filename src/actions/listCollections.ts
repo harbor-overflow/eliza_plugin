@@ -35,7 +35,7 @@ export const listCollectionsAction: Action = {
 
       const suiService = new SuiService(runtime);
       const { success, collections, error } =
-        await suiService.listCollectionsTask();
+        await suiService.listMyCollectionsTask();
 
       if (!success || !collections) {
         const responseContent: Content = {
@@ -82,7 +82,7 @@ Owner: ${collection.owner}
       {
         name: '{{name1}}',
         content: {
-          text: 'show all collections',
+          text: 'show my collections',
         },
       },
       {

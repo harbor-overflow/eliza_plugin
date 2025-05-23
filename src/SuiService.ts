@@ -324,10 +324,17 @@ export class SuiService extends Service {
         throw new Error(`Transaction failed with status: ${status}`);
       }
 
+      console.log('Transaction result:', result);
+
       return {
         success: true,
         transactionDigest: result.digest,
         effects: result.effects,
+        nftId: (result.objectChanges?.find(
+          (change) =>
+            change.type === 'created' &&
+            change.objectType?.includes('::file_nft::AccessNFT')
+        ) as SuiObjectCreateChange).objectId,
       };
     } catch (error) {
       logger.error(`Failed to update collection metadata: ${error}`);
@@ -441,7 +448,7 @@ export class SuiService extends Service {
   /**
    * Task to list all collections owned by the user
    */
-  async listCollectionsTask() {
+  async listMyCollectionsTask() {
     try {
       const suiClient = new SuiClient({ url: getFullnodeUrl('testnet') });
       const privateKey = process.env.SUI_PRIVATE_KEY;
@@ -480,7 +487,7 @@ export class SuiService extends Service {
           end_epoch: content?.fields?.end_epoch,
           max_supply: content?.fields?.max_supply,
           minted: content?.fields?.minted,
-          mint_price: content?.fields?.mint_price,
+          mint_price: content?.fields?.mint_price / 1000000000, // convert to SUI
           owner: content?.fields?.owner,
         };
       });
@@ -495,6 +502,41 @@ export class SuiService extends Service {
         success: false,
         error: error instanceof Error ? error.message : String(error),
         collections: [],
+      };
+    }
+  }
+
+  async getNFTCollectionTask(collecionId: string) {
+    try {
+      const suiClient = new SuiClient({ url: getFullnodeUrl('testnet') });
+      const collection = await suiClient.getObject({
+        id: collecionId,
+        options: {
+          showContent: true,
+          showType: true,
+        },
+      });
+      const content = collection.data?.content as any;
+
+      return {
+        success: true,
+        id: collection.data?.objectId,
+        name: content?.fields?.name,
+        blob_id: content?.fields?.blob_id,
+        file_name: content?.fields?.file_name,
+        file_size: content?.fields?.file_size,
+        resource_type: content?.fields?.resource_type,
+        end_epoch: content?.fields?.end_epoch,
+        max_supply: content?.fields?.max_supply,
+        minted: content?.fields?.minted,
+        mint_price: content?.fields?.mint_price,
+        owner: content?.fields?.owner,
+      };
+    } catch (error) {
+      logger.error(`Failed to get NFT collection info: ${error}`);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : String(error),
       };
     }
   }

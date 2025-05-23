@@ -163,7 +163,7 @@ export const downloadWithNFTAction: Action = {
           text: decryptSuccess
             ? `memory downloaded successfully!`
             : `Failed to add memory: ${decryptError}`,
-          actions: ['DOWNLOAD_AND_DECRYPT_MEMORY'],
+          actions: ['DOWNLOAD_MEMORY_WITH_NFT'],
         };
 
         await callback(responseContent);
@@ -217,14 +217,14 @@ export const downloadWithNFTAction: Action = {
           text: decryptSuccess
             ? `File downloaded successfully. [Download File](${downloadLink})`
             : `Failed to download file`,
-          actions: ['DOWNLOAD_AND_DECRYPT_FILE'],
+          actions: ['DOWNLOAD_FILE_WITH_NFT'],
         };
 
         await callback(responseContent);
         return responseContent;
       }
     } catch (error) {
-      logger.error(`Error in DOWNLOAD_AND_DECRYPT_FILE action: ${error}`);
+      logger.error(`Error in DOWNLOAD_WITH_NFT action: ${error}`);
       throw error;
     }
   },
