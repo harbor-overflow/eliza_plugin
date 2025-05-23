@@ -130,7 +130,7 @@ export const uploadMemoryWithNFTAction: Action = {
       const createCollectionResult = await suiService.createCollectionTask(
         name,
         maxSupply,
-        mintPrice * 1000000000 // Convert from SUI to MIST
+        mintPrice
       );
 
       if (!createCollectionResult.success) {

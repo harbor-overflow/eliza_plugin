@@ -78,7 +78,9 @@ export const mintAccessNFTAction: Action = {
       const suiService = new SuiService(runtime);
 
       // First, get collection info to check mint_price
-      const collection = await suiService.getNFTCollectionTask(responseContentObj.collectionId);
+      const collection = await suiService.getNFTCollectionTask(
+        responseContentObj.collectionId
+      );
 
       if (!collection) {
         const responseContent: Content = {
@@ -98,7 +100,7 @@ export const mintAccessNFTAction: Action = {
 
       const responseContent: Content = {
         text: success
-          ? `Successfully minted AccessNFT!\nNFT ID: ${nftId}\nCollection ID: ${responseContentObj.collectionId}\nTransaction ID: ${transactionDigest}\nMint Price: ${collection.mint_price} SUI\n\n[https://testnet.suivision.xyz/txblock/${transactionDigest}](https://testnet.suivision.xyz/txblock/${transactionDigest})`
+          ? `Successfully minted AccessNFT!\nNFT ID: ${nftId}\nCollection ID: ${responseContentObj.collectionId}\nTransaction ID: ${transactionDigest}\nMint Price: ${collection.mint_price / 1000000000} SUI\n\n[https://testnet.suivision.xyz/txblock/${transactionDigest}](https://testnet.suivision.xyz/txblock/${transactionDigest})`
           : `Failed to mint AccessNFT: ${error}`,
         actions: ['MINT_ACCESS_NFT'],
       };

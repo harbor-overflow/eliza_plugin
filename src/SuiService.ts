@@ -337,7 +337,7 @@ export class SuiService extends Service {
         ) as SuiObjectCreateChange).objectId,
       };
     } catch (error) {
-      logger.error(`Failed to update collection metadata: ${error}`);
+      logger.error(`Failed to mint AccessNFT: ${error}`);
       return {
         success: false,
         error: error instanceof Error ? error.message : String(error),
