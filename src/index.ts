@@ -1,7 +1,6 @@
 import type { Plugin } from '@elizaos/core';
 import { logger } from '@elizaos/core';
 import { z } from 'zod';
-import { WalrusSealService } from './service';
 import { encryptAndUploadMemoryAction } from './actions/encryptAndUploadMemory';
 import { createAllowlistAction } from './actions/createAllowlist';
 import { addAllowlistAction } from './actions/addAllowlist';
@@ -19,6 +18,7 @@ import fs from 'fs';
 import { uploadFileWithNFTAction } from './actions/uploadFileWithNFT';
 import { SuiService } from './SuiService';
 import { SealService } from './sealService';
+import { WalrusService } from './WalrusService';
 
 const MAX_CHUNK_SIZE = 10 * 1024 * 1024; // 5MB 청크 사이즈 (멀터 한계보다 작게)
 const UPLOAD_DIR = path.join(process.cwd(), 'data/uploads');
@@ -625,7 +625,7 @@ export const harborPlugin: Plugin = {
     },
   ],
   events: {},
-  services: [SuiService, WalrusSealService, SealService],
+  services: [SuiService, WalrusService, SealService],
   actions: [
     encryptAndUploadMemoryAction,
     encryptAndUploadFileAction,
