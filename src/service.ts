@@ -17,6 +17,7 @@ import { WalrusClient } from '@mysten/walrus';
 import { TESTNET_ALLOWLIST_PACKAGE_ID } from './constants';
 import { Transaction } from '@mysten/sui/transactions';
 import { SuiObjectCreateChange } from './types';
+import { FILE_NFT_PACKAGE_ID } from './constants';
 
 export class WalrusSealService extends Service {
   static serviceType = ServiceType.TASK;
@@ -455,11 +456,8 @@ export class WalrusSealService extends Service {
     }
   }
 
-  async mintFileNFTTask(
-    collectionId: string,
-    blobId: string,
-    fileName: string,
-    fileSize: number,
+  async mintAccessNFT(
+    collection: string,
     paymentAmount: number
   ) {
     try {
@@ -470,26 +468,17 @@ export class WalrusSealService extends Service {
       }
       const keypair = Ed25519Keypair.fromSecretKey(privateKey);
 
-      const packageId = process.env.FILE_NFT_PACKAGE_ID;
-      if (!packageId) {
-        throw new Error('FILE_NFT_PACKAGE_ID environment variable is not set');
-      }
-
       // 트랜잭션 생성
       const tx = new Transaction();
 
       // SUI 코인 생성
       const [paymentCoin] = tx.splitCoins(tx.gas, [tx.pure.u64(paymentAmount)]);
 
-      // file_nft::mint_nft 함수 호출
+      // file_nft::mint_access_nft 함수 호출
       tx.moveCall({
-        target: `${packageId}::file_nft::mint_nft`,
+        target: `${FILE_NFT_PACKAGE_ID}::file_nft::mint_access_nft`,
         arguments: [
-          tx.object(collectionId),
-          tx.pure.string(blobId),
-          tx.pure.string(fileName),
-          tx.pure.u64(fileSize),
-          tx.pure.u8(0), // resource_type: 0 = 파일
+          tx.object(collection),
           paymentCoin,
         ],
       });
@@ -508,77 +497,7 @@ export class WalrusSealService extends Service {
       const nftObj = result.objectChanges?.find(
         (change) =>
           change.type === 'created' &&
-          change.objectType === `${packageId}::file_nft::FileNFT`
-      );
-
-      return {
-        success: true,
-        nftId: nftObj && 'objectId' in nftObj ? nftObj.objectId : undefined,
-        transactionDigest: result.digest,
-      };
-    } catch (error) {
-      logger.error(`Failed to mint NFT: ${error}`);
-      return {
-        success: false,
-        error: error instanceof Error ? error.message : String(error),
-      };
-    }
-  }
-
-  async mintMemoryNFTTask(
-    collectionId: string,
-    blobId: string,
-    memoryName: string,
-    memorySize: number,
-    paymentAmount: number
-  ) {
-    try {
-      const suiClient = new SuiClient({ url: getFullnodeUrl('testnet') });
-      const privateKey = process.env.SUI_PRIVATE_KEY;
-      if (!privateKey) {
-        throw new Error('SUI_PRIVATE_KEY environment variable is not set');
-      }
-      const keypair = Ed25519Keypair.fromSecretKey(privateKey);
-
-      const packageId = process.env.FILE_NFT_PACKAGE_ID;
-      if (!packageId) {
-        throw new Error('FILE_NFT_PACKAGE_ID environment variable is not set');
-      }
-
-      // 트랜잭션 생성
-      const tx = new Transaction();
-
-      // SUI 코인 생성
-      const [paymentCoin] = tx.splitCoins(tx.gas, [tx.pure.u64(paymentAmount)]);
-
-      // file_nft::mint_nft 함수 호출
-      tx.moveCall({
-        target: `${packageId}::file_nft::mint_nft`,
-        arguments: [
-          tx.object(collectionId),
-          tx.pure.string(blobId),
-          tx.pure.string(memoryName),
-          tx.pure.u64(memorySize),
-          tx.pure.u8(1), // resource_type: 1 = 메모리
-          paymentCoin,
-        ],
-      });
-
-      // 트랜잭션 실행
-      const result = await suiClient.signAndExecuteTransaction({
-        signer: keypair,
-        transaction: tx,
-        options: {
-          showEffects: true,
-          showObjectChanges: true,
-        },
-      });
-
-      // NFT objectId 추출
-      const nftObj = result.objectChanges?.find(
-        (change) =>
-          change.type === 'created' &&
-          change.objectType === `${packageId}::file_nft::FileNFT`
+          change.objectType === `${FILE_NFT_PACKAGE_ID}::file_nft::AccessNFT`
       );
 
       return {
@@ -608,17 +527,12 @@ export class WalrusSealService extends Service {
       }
       const keypair = Ed25519Keypair.fromSecretKey(privateKey);
 
-      const packageId = process.env.FILE_NFT_PACKAGE_ID;
-      if (!packageId) {
-        throw new Error('FILE_NFT_PACKAGE_ID environment variable is not set');
-      }
-
       // 트랜잭션 생성
       const tx = new Transaction();
 
       // file_nft::create_collection 함수 호출
       tx.moveCall({
-        target: `${packageId}::file_nft::create_collection`,
+        target: `${FILE_NFT_PACKAGE_ID}::file_nft::create_collection`,
         arguments: [
           tx.pure.string(name),
           tx.pure.u64(maxSupply),
@@ -640,7 +554,7 @@ export class WalrusSealService extends Service {
       const collectionObj = result.objectChanges?.find(
         (change) =>
           change.type === 'created' &&
-          change.objectType.includes('::file_nft::Collection')
+          change.objectType === `${FILE_NFT_PACKAGE_ID}::file_nft::Collection`
       );
 
       return {
@@ -649,7 +563,7 @@ export class WalrusSealService extends Service {
         transactionDigest: result.digest,
       };
     } catch (error) {
-      logger.error(`Failed to create Collection: ${error}`);
+      logger.error(`Failed to create Collection with file: ${error}`);
       return {
         success: false,
         error: error instanceof Error ? error.message : String(error),
@@ -657,7 +571,72 @@ export class WalrusSealService extends Service {
     }
   }
 
-  async listNFTsTask() {
+  async downloadWithNFTTask(nftId: string, blobId: string) {
+    try {
+      const suiClient = new SuiClient({ url: getFullnodeUrl('testnet') });
+      const privateKey = process.env.SUI_PRIVATE_KEY;
+      if (!privateKey) {
+        throw new Error('SUI_PRIVATE_KEY environment variable is not set');
+      }
+      const keypair = Ed25519Keypair.fromSecretKey(privateKey);
+
+      // seal_approve 트랜잭션 생성
+      const tx = new Transaction();
+      tx.moveCall({
+        target: `${FILE_NFT_PACKAGE_ID}::file_nft::seal_approve`,
+        arguments: [
+          tx.pure.vector('u8', fromHex(blobId)),
+          tx.object(nftId),
+        ],
+      });
+
+      // 트랜잭션 바이트 생성
+      const txBytes = await tx.build({
+        client: suiClient,
+        onlyTransactionKind: true,
+      });
+
+      // SessionKey 생성
+      const sessionKey = new SessionKey({
+        address: keypair.getPublicKey().toSuiAddress(),
+        packageId: FILE_NFT_PACKAGE_ID,
+        ttlMin: 10,
+        signer: keypair,
+      });
+
+      // SealClient 설정
+      const client = new SealClient({
+        suiClient,
+        serverObjectIds: getAllowlistedKeyServers('testnet').map((id) => [id, 1]),
+        verifyKeyServers: false,
+      });
+
+      // 다운로드 및 복호화
+      const downloadResult = await this.createDownloadTask(blobId);
+      if (!downloadResult.success) {
+        throw new Error(downloadResult.error);
+      }
+
+      const decryptedData = await client.decrypt({
+        data: downloadResult.data,
+        sessionKey,
+        txBytes,
+      });
+
+      return {
+        success: true,
+        data: decryptedData,
+      };
+    } catch (error) {
+      logger.error(`Failed to download with NFT: ${error}`);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : String(error),
+      };
+    }
+  }
+
+  async listCollectionsTask() {
     try {
       const suiClient = new SuiClient({ url: getFullnodeUrl('testnet') });
       const privateKey = process.env.SUI_PRIVATE_KEY;
@@ -667,13 +646,71 @@ export class WalrusSealService extends Service {
       const keypair = Ed25519Keypair.fromSecretKey(privateKey);
       const address = keypair.getPublicKey().toSuiAddress();
 
-      // 내 주소가 소유한 모든 NFT 조회
+      // Collection 객체 조회
+      const collections = await suiClient.getOwnedObjects({
+        owner: address,
+        filter: {
+          MatchAll: [
+            {
+              StructType: `${FILE_NFT_PACKAGE_ID}::file_nft::Collection`
+            }
+          ]
+        },
+        options: {
+          showContent: true,
+          showType: true
+        }
+      });
+
+      // Collection 정보 파싱
+      const collectionList = collections.data.map(collection => {
+        const content = collection.data?.content as any;
+        return {
+          id: collection.data?.objectId,
+          name: content?.fields?.name,
+          blob_id: content?.fields?.blob_id,
+          file_name: content?.fields?.file_name,
+          file_size: content?.fields?.file_size,
+          resource_type: content?.fields?.resource_type,
+          end_epoch: content?.fields?.end_epoch,
+          max_supply: content?.fields?.max_supply,
+          minted: content?.fields?.minted,
+          mint_price: content?.fields?.mint_price,
+          owner: content?.fields?.owner
+        };
+      });
+
+      return {
+        success: true,
+        collections: collectionList
+      };
+    } catch (error) {
+      logger.error(`Failed to list collections: ${error}`);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : String(error),
+        collections: []
+      };
+    }
+  }
+
+  async listMyNFTsTask() {
+    try {
+      const suiClient = new SuiClient({ url: getFullnodeUrl('testnet') });
+      const privateKey = process.env.SUI_PRIVATE_KEY;
+      if (!privateKey) {
+        throw new Error('SUI_PRIVATE_KEY environment variable is not set');
+      }
+      const keypair = Ed25519Keypair.fromSecretKey(privateKey);
+      const address = keypair.getPublicKey().toSuiAddress();
+
+      // AccessNFT 객체 조회
       const nfts = await suiClient.getOwnedObjects({
         owner: address,
         filter: {
           MatchAll: [
             {
-              StructType: `${process.env.FILE_NFT_PACKAGE_ID}::file_nft::FileNFT`
+              StructType: `${FILE_NFT_PACKAGE_ID}::file_nft::AccessNFT`
             }
           ]
         },
@@ -688,11 +725,8 @@ export class WalrusSealService extends Service {
         const content = nft.data?.content as any;
         return {
           id: nft.data?.objectId,
-          blob_id: content?.fields?.blob_id,
-          file_name: content?.fields?.file_name,
-          file_size: content?.fields?.file_size,
-          resource_type: content?.fields?.resource_type,
-          collection_id: content?.fields?.collection_id
+          collection_id: content?.fields?.collection_id,
+          owner: content?.fields?.owner
         };
       });
 
