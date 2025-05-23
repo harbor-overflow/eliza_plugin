@@ -238,7 +238,7 @@ export const uploadFileWithNFTAction: Action = {
         `Collection ID: ${collectionId}\n` +
         `Name: ${name}\n` +
         `Max Supply: ${maxSupply}\n` +
-        `Mint Price: ${mintPrice / 1000000000} SUI\n` +
+        `Mint Price: ${mintPrice} SUI\n` +
         `Blob ID: ${blobId}`;
 
       const responseContent: Content = {
