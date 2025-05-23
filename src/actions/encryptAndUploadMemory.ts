@@ -10,7 +10,7 @@ import {
   ModelType,
   parseJSONObjectFromText,
 } from '@elizaos/core';
-import { SealService } from 'src/sealService';
+import { SealService } from 'src/SealService';
 import { WalrusService } from 'src/WalrusService';
 
 const encryptAndUploadMemoryTemplate = `# Task: Encrypt and Upload Memory

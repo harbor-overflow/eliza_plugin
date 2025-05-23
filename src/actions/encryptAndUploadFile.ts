@@ -11,7 +11,7 @@ import {
   parseJSONObjectFromText,
 } from '@elizaos/core';
 import fs from 'fs';
-import { SealService } from 'src/sealService';
+import { SealService } from 'src/SealService';
 import { WalrusService } from 'src/WalrusService';
 
 const encryptAndUploadFileTemplate = `# Task: Encrypt and Upload File

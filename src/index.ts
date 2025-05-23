@@ -17,7 +17,7 @@ import path from 'path';
 import fs from 'fs';
 import { uploadFileWithNFTAction } from './actions/uploadFileWithNFT';
 import { SuiService } from './SuiService';
-import { SealService } from './sealService';
+import { SealService } from './SealService';
 import { WalrusService } from './WalrusService';
 
 const MAX_CHUNK_SIZE = 10 * 1024 * 1024;
@@ -100,26 +100,16 @@ function cleanupExpiredDownloads() {
  * @type {import('zod').ZodObject<{ EXAMPLE_PLUGIN_VARIABLE: import('zod').ZodString }>}
  */
 const configSchema = z.object({
-  EXAMPLE_PLUGIN_VARIABLE: z
+  SUI_PRIVATE_KEY: z
     .string()
-    .min(1, 'Example plugin variable is not provided')
+    .min(1, 'SUI_PRIVATE_KEY is not provided')
     .optional()
     .transform((val) => {
       if (!val) {
-        logger.warn(
-          'Example plugin variable is not provided (this is expected)'
-        );
+        logger.warn('SUI_PRIVATE_KEY is not provided');
       }
       return val;
     }),
-  FILE_NFT_PACKAGE_ID: z
-    .string()
-    .min(1, 'FILE_NFT_PACKAGE_ID is not provided')
-    .optional(),
-  FILE_NFT_ADMIN_CAP_ID: z
-    .string()
-    .min(1, 'FILE_NFT_ADMIN_CAP_ID is not provided')
-    .optional(),
 });
 
 export const harborPlugin: Plugin = {
@@ -127,9 +117,7 @@ export const harborPlugin: Plugin = {
   description:
     'Plugin harbor for upload and download encrypted memories with walrus and seal',
   config: {
-    EXAMPLE_PLUGIN_VARIABLE: process.env.EXAMPLE_PLUGIN_VARIABLE,
-    FILE_NFT_PACKAGE_ID: process.env.FILE_NFT_PACKAGE_ID,
-    FILE_NFT_ADMIN_CAP_ID: process.env.FILE_NFT_ADMIN_CAP_ID,
+    SUI_PRIVATE_KEY: process.env.SUI_PRIVATE_KEY,
   },
   async init(config: Record<string, string>) {
     logger.info('*** TESTING DEV MODE - PLUGIN MODIFIED AND RELOADED! ***');

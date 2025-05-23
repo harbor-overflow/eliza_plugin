@@ -12,7 +12,7 @@ import {
 } from '@elizaos/core';
 import fs from 'fs';
 import { SuiService } from 'src/SuiService';
-import { SealService } from 'src/sealService';
+import { SealService } from 'src/SealService';
 import { WalrusService } from 'src/WalrusService';
 
 const uploadFileWithNFTTemplate = `# Task: Upload File with NFT

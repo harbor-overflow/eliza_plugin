@@ -16,7 +16,7 @@ import path from 'path';
 import crypto from 'crypto';
 import { DOWNLOAD_DIR } from '../index';
 import { WalrusService } from 'src/WalrusService';
-import { SealService } from 'src/sealService';
+import { SealService } from 'src/SealService';
 
 const downloadAndDecryptFileTemplate = `# Task: Download and Decrypt File
 
