@@ -210,7 +210,11 @@ These three services work together to provide the complete functionality of Harb
 
 ## Smart Contract Details
 
-The Harbor plugin uses a Move smart contract on the Sui blockchain called `file_nft`. The contract has the following key structures and functions:
+The Harbor plugin uses a Move smart contract on the Sui blockchain called `file_nft`. The contract has been deployed to Sui Testnet with package ID:
+
+**PackageID**: `0xb92cb3f03d64d00ad0a4c657179d0b09e23bfb8551fdeb1833bf246d9b37bcfb`
+
+You can view the contract on [Sui Testnet Explorer](https://testnet.suivision.xyz/package/0xb92cb3f03d64d00ad0a4c657179d0b09e23bfb8551fdeb1833bf246d9b37bcfb?tab=Code).
 
 ### Structs
 
